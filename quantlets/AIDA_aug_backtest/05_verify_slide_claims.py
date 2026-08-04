@@ -49,7 +49,31 @@ def usable(d):
     return (m & d["order_ok"]) if "order_ok" in d else m
 
 
+def kupiec_reject(n, alpha=ALPHA, level=0.05):
+    """Counts in the exact two-sided rejection region of Kupiec's LR_UC."""
+    crit = stats.chi2.ppf(1 - level, 1)
+    x = np.arange(n + 1)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        ph = x / n
+        ll0 = (n - x) * np.log(1 - alpha) + x * np.log(alpha)
+        ll1 = (n - x) * np.log(np.clip(1 - ph, 1e-300, None)) \
+            + x * np.log(np.clip(ph, 1e-300, None))
+        ll1 = np.where(x == 0, 0.0, ll1)
+    return x[-2 * (ll0 - ll1) > crit]
+
+
+def detectable_power(n, target=0.80, alpha=ALPHA, level=0.05):
+    """Smallest true breach rate rejected with `target` power: a power calculation,
+    not the weaker 'expected count is already a rejection' criterion."""
+    rej = kupiec_reject(n, alpha, level)
+    for p in np.arange(alpha, 0.90, 0.0005):
+        if float(stats.binom.pmf(rej, n, p).sum()) >= target:
+            return p
+    return np.nan
+
+
 def detectable(n, alpha=ALPHA, level=0.05):
+    """The weaker criterion, kept because the slide contrasts the two."""
     crit = stats.chi2.ppf(1 - level, 1)
     for p in np.arange(alpha, 0.6, 0.0005):
         x = p * n
@@ -97,10 +121,10 @@ def main():
         check(f"days where q{lvl:.2f} equals q0.10 exactly", round(100 * share), 100)
 
     print("\n--- Kupiec power at 1% ---")
-    check("smallest detectable rate, 500 days (%)",
+    check("80% power, 500 days (%)", round(100 * detectable_power(500), 2), 2.50, 0.01)
+    check("80% power, 5541 days (%)", round(100 * detectable_power(5541), 2), 1.45, 0.01)
+    check("expected-count criterion, 500 days (%)",
           round(100 * detectable(500), 2), 2.00, 0.01)
-    check("smallest detectable rate, 5541 days (%)",
-          round(100 * detectable(5541), 2), 1.30, 0.01)
 
     print("\n--- LLM replies, four configurations ---")
     k4 = [k for k in llm if k.startswith("LLM")]
@@ -270,6 +294,25 @@ def main():
               int(round(r["rate"].min() * 500 / 100)), 24)
     else:
         print("  sampling comparison not present")
+
+    print("\n--- model dependence, the SYNCRISK frame ---")
+    prim = ["HS", "GARCH-t", "NN-t", "Chronos-T5", "LLM-series", "LLM-series+state",
+            "LLM-dated", "LLM-dated+news", "Open-1.5B"]
+    wide = pd.DataFrame({k: models[k] for k in prim if k in models}).dropna()
+    R = wide.corr()
+    off = R.values[np.triu_indices_from(R.values, k=1)]
+    lam = np.linalg.eigvalsh(R.values)[::-1]
+    check("forecasts in the primary comparison", len(R), 9)
+    check("median pairwise correlation", round(float(np.median(off)), 2), 0.47, 0.005)
+    check("first eigenvalue share of R", round(float(lam[0] / len(R)), 2), 0.53, 0.005)
+    llmk = [k for k in R.columns if k.startswith("LLM")]
+    blk = R.loc[llmk, llmk].values[np.triu_indices(len(llmk), 1)]
+    check("median rho within the four LLM configurations",
+          round(float(np.median(blk)), 2), 0.75, 0.005)
+    check("least correlated with the rest is HS",
+          str(R.mean().idxmin()), "HS")
+    check("HS mean correlation with the rest", round(float(R.mean().min()), 2),
+          0.21, 0.005)
 
     print("\n--- the five-asset table ---")
     tf = ROOT / "tables" / "backtest_all_assets.tex"

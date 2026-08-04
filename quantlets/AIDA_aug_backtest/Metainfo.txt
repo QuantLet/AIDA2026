@@ -1,15 +1,15 @@
-Name of QuantLet: AIDA_aug_backtest
+Name of QuantLet: 'AIDA_aug_backtest'
 
-Published in: AIDA Summer School 2026 - AI in Financial Risk Modelling (August course)
+Published in: 'AIDA Summer School 2026 - AI in Financial Risk Modelling (August course)'
 
-Description: Backtesting and scoring at alpha = 1%: Kupiec unconditional coverage, Christoffersen independence, the pinball loss, Diebold-Mariano with a HAC standard error, model disagreement, and a checker that re-derives every number printed on a slide.
+Description: 'Backtesting and scoring at alpha = 1%: Kupiec unconditional coverage, Christoffersen independence, the pinball loss, Diebold-Mariano with a HAC standard error, model disagreement, and a checker that re-derives every number printed on a slide.'
 
-Keywords: value-at-risk, backtesting, kupiec, christoffersen, diebold-mariano, foundation-model, large-language-model, zero-shot, risk-management, financial-econometrics
+Keywords: 'value-at-risk, backtesting, kupiec, christoffersen, diebold-mariano, foundation-model, large-language-model, zero-shot, risk-management, financial-econometrics'
 
-Author: Daniel Traian Pele
+Author: 'Daniel Traian Pele'
 
-Submitted: 2026-07-31
+Submitted: '2026-07-31'
 
-Datafile: precomputed/*.csv
+Datafile: 'precomputed/*.csv'
 
-Output: figures/slides/*.pdf, precomputed/slide_facts_*.csv
+Output: 'figures/slides/*.pdf, precomputed/slide_facts_*.csv'

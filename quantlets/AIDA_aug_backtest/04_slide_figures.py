@@ -30,6 +30,12 @@ ASSET = (sys.argv[1] if len(sys.argv) > 1 else "SPX").upper()
 LLM_MODEL = "claude-haiku-4-5"
 GREY = "#6E6E6E"
 
+# The primary comparison. Qwen 3B, 7B and 14B are size diagnostics and are deliberately
+# NOT in it: they answer "what does scale do to one family", not "which model forecasts
+# this asset". Any figure that ranks or aggregates models uses this list.
+PRIMARY = ("HS", "GARCH-t", "NN-t", "Chronos-T5", "LLM-series", "LLM-series+state",
+           "LLM-dated", "LLM-dated+news", "Open-1.5B")
+
 mpl.rcParams.update({
     "figure.figsize": (10, 4.6),
     "font.size": 13,
@@ -113,23 +119,69 @@ def _usable(d):
 
 
 # ---------------------------------------------------------------------------
-def fig_power(bench):
-    """Why the lab evaluates 500 days and not 50."""
-    def detectable(n, alpha=ALPHA, level=0.05):
-        crit = stats.chi2.ppf(1 - level, 1)
-        for p in np.arange(alpha, 0.6, 0.001):
-            x = p * n
-            ll0 = (n - x) * np.log(1 - alpha) + x * np.log(alpha)
-            ll1 = (n - x) * np.log(1 - p) + x * np.log(p)
-            if -2 * (ll0 - ll1) > crit:
-                return p
-        return np.nan
+def _kupiec_reject(n, alpha=ALPHA, level=0.05):
+    """Breach counts in the rejection region of the two-sided Kupiec LR_UC test.
 
+    Exact: the statistic is evaluated at every attainable count 0..n and compared with
+    the chi-square(1) critical value, rather than inverted through a normal
+    approximation. LR_UC is two-sided by construction -- too few breaches is a
+    rejection as much as too many.
+    """
+    crit = stats.chi2.ppf(1 - level, 1)
+    x = np.arange(n + 1)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        ph = x / n
+        ll0 = (n - x) * np.log(1 - alpha) + x * np.log(alpha)
+        ll1 = np.where(x == 0, n * np.log(1 - ph[0] if n else 1),
+                       (n - x) * np.log(np.clip(1 - ph, 1e-300, None))
+                       + x * np.log(np.clip(ph, 1e-300, None)))
+        ll1 = np.where(x == 0, 0.0, ll1)
+    return x[-2 * (ll0 - ll1) > crit]
+
+
+def _detectable_power(n, target=0.80, alpha=ALPHA, level=0.05):
+    """Smallest true breach probability the test rejects with `target` power.
+
+    This is a power calculation: for each candidate p, the probability that a
+    Binomial(n, p) count lands in the exact rejection region above.
+    """
+    rej = _kupiec_reject(n, alpha, level)
+    if len(rej) == 0:
+        return np.nan
+    for p in np.arange(alpha, 0.90, 0.0005):
+        if float(stats.binom.pmf(rej, n, p).sum()) >= target:
+            return p
+    return np.nan
+
+
+def _detectable_expected(n, alpha=ALPHA, level=0.05):
+    """Weaker criterion: the smallest p whose EXPECTED count is already a rejection.
+
+    Kept alongside the power curve because it is the number people quote, and it is
+    optimistic by roughly a factor of two: an expected count inside the rejection
+    region still leaves the realised count outside it about half the time.
+    """
+    crit = stats.chi2.ppf(1 - level, 1)
+    for p in np.arange(alpha, 0.90, 0.0005):
+        x = p * n
+        ll0 = (n - x) * np.log(1 - alpha) + x * np.log(alpha)
+        ll1 = (n - x) * np.log(1 - p) + x * np.log(p)
+        if -2 * (ll0 - ll1) > crit:
+            return p
+    return np.nan
+
+
+def fig_power(bench):
+    """Why the lab evaluates 500 days and not 50, stated as an actual power curve."""
     ns = np.array([25, 50, 75, 100, 150, 250, 500, 1000, 2000])
-    ys = np.array([detectable(int(n)) for n in ns])
+    pw = np.array([_detectable_power(int(n)) for n in ns])
+    ex = np.array([_detectable_expected(int(n)) for n in ns])
 
     fig, ax = plt.subplots()
-    ax.plot(ns, 100 * ys, "o-", color=al.MAIN_BLUE, lw=2, ms=6)
+    ax.plot(ns, 100 * pw, "o-", color=al.MAIN_BLUE, lw=2, ms=6,
+            label="Detectable with 80% power")
+    ax.plot(ns, 100 * ex, "s--", color=GREY, lw=1.6, ms=5,
+            label="Expected count alone enters the rejection region")
     ax.axhline(100 * ALPHA, color=al.FOREST, lw=1.4, ls="--",
                label=f"nominal {ALPHA:.0%}")
     ax.axvline(500, color=al.IDA_RED, lw=1.4, ls=":", label="lab test span, 500 days")
@@ -137,11 +189,16 @@ def fig_power(bench):
     ax.set_xticks(ns)
     ax.set_xticklabels([str(n) for n in ns])
     ax.set_xlabel("Out-of-sample days")
-    ax.set_ylabel("Smallest detectable\nbreach rate (%)")
-    ax.set_title("A short backtest cannot reject a bad model")
-    legend_below(ax, ncol=2)
+    ax.set_ylabel("Smallest detectable\ntrue breach rate (%)")
+    ax.set_title("Two-sided Kupiec LR$_{UC}$ at the 5% level, exact binomial power")
+    legend_below(ax, ncol=2, y=-0.22, fontsize=10)
     save(fig, "s_power")
-    return {"detect_50": ys[1], "detect_500": ys[6]}
+    i500, i5541 = list(ns).index(500), None
+    return {"detect_power_500": round(100 * pw[i500], 2),
+            "detect_power_50": round(100 * pw[1], 2),
+            "detect_expected_500": round(100 * ex[i500], 2),
+            "detect_power_5541": round(100 * _detectable_power(5541), 2),
+            "detect_expected_5541": round(100 * _detectable_expected(5541), 2)}
 
 
 def fig_clamp(bolt):
@@ -192,7 +249,7 @@ def fig_thresholds(bench, models):
         v = models[k].dropna()
         ax.plot(v.index, -v.values, lw=1.6, color=MODEL_COLORS.get(k, GREY),
                 label=MODEL_LABELS.get(k, k), zorder=2)
-    ax.set_ylabel("Daily return (%)")
+    ax.set_ylabel("Return and 1% return-quantile\nthreshold (%)")
     ax.set_title(f"{ASSETS[ASSET]['label']}: the same question, four answers")
     legend_below(ax, ncol=3, y=-0.16, fontsize=10)
     save(fig, "s_thresholds")
@@ -247,19 +304,50 @@ def fig_backtest(bench, models):
 
 
 def fig_disagreement(models):
-    """The band between the most and least conservative model."""
-    sp = al.disagreement(models)
-    fig, ax = plt.subplots(figsize=(12, 4.4))
-    ax.fill_between(sp.index, -sp["max"], -sp["min"], color=al.MAIN_BLUE, alpha=0.18,
+    """Spread AND dependence, because a wide band is not evidence of either.
+
+    The band alone cannot support the SYNCRISK argument: two forecasts can differ in
+    level every day and still move together every day, which is the case that matters
+    for concentration risk. The right panel therefore reports the pairwise correlation
+    matrix of the daily forecasts and the share of its variance in the first principal
+    component, which is the quantity the argument actually needs.
+    """
+    prim = {k: v for k, v in models.items() if k in PRIMARY}
+    sp = al.disagreement(prim)
+    wide = pd.DataFrame({k: pd.Series(v).astype(float)
+                         for k, v in prim.items()}).dropna()
+    R = wide.corr()
+    off = R.values[np.triu_indices_from(R.values, k=1)]
+    lam = np.linalg.eigvalsh(R.values)[::-1]
+    pc1 = float(lam[0] / len(R))
+
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(13.0, 4.4),
+                                 gridspec_kw={"width_ratios": [1.7, 1]})
+    a1.fill_between(sp.index, -sp["max"], -sp["min"], color=al.MAIN_BLUE, alpha=0.18,
                     label="Range across models")
-    ax.plot(sp.index, -sp["mean"], color=al.MAIN_BLUE, lw=1.5, label="Mean forecast")
-    ax.set_ylabel("VaR threshold, return axis (%)")
-    ax.set_title(f"Median spread {sp['range'].median():.2f}pp, "
-                 f"median max/min {sp['ratio'].median():.2f}x, "
-                 f"widest {sp['range'].max():.2f}pp")
-    legend_below(ax, ncol=2, y=-0.18)
+    a1.plot(sp.index, -sp["mean"], color=al.MAIN_BLUE, lw=1.5, label="Mean forecast")
+    a1.set_ylabel("1% return-quantile\nthreshold (%)")
+    a1.set_title(f"Median spread {sp['range'].median():.2f}pp, widest "
+                 f"{sp['range'].max():.2f}pp")
+    legend_below(a1, ncol=2, y=-0.20, fontsize=10)
+
+    im = a2.imshow(R.values, cmap="Blues", vmin=0, vmax=1)
+    a2.set_xticks(range(len(R)))
+    a2.set_yticks(range(len(R)))
+    a2.set_xticklabels(R.columns, rotation=90, fontsize=7)
+    a2.set_yticklabels(R.index, fontsize=7)
+    a2.grid(visible=False)
+    a2.set_title(f"Median pairwise $\\rho$ = {np.median(off):.2f}\n"
+                 f"$\\lambda_1(R)/N$ = {pc1:.2f}", fontsize=12)
+    fig.colorbar(im, ax=a2, fraction=0.046)
+
+    fig.tight_layout()
     save(fig, "s_disagreement")
-    return {"median_range": sp["range"].median(), "median_ratio": sp["ratio"].median(),
+    return {"median_pairwise_rho": round(float(np.median(off)), 2),
+            "min_pairwise_rho": round(float(off.min()), 2),
+            "pc1_share": round(pc1, 2),
+            "disagreement_models": len(R),
+            "median_range": sp["range"].median(), "median_ratio": sp["ratio"].median(),
             "max_range": sp["range"].max(), "max_range_date": sp["range"].idxmax()}
 
 
@@ -281,7 +369,7 @@ def fig_llm(bench, models):
                 label=MODEL_LABELS.get(k, k))
     a1.plot(models["GARCH-t"].index, -models["GARCH-t"].values, lw=1.3,
             color=MODEL_COLORS["GARCH-t"], label=MODEL_LABELS["GARCH-t"])
-    a1.set_ylabel("Daily return (%)")
+    a1.set_ylabel("Return and 1% return-quantile\nthreshold (%)")
     a1.set_title("The LLM states a threshold")
     legend_below(a1, ncol=2, y=-0.20, fontsize=9)
 
@@ -397,7 +485,7 @@ def fig_open(bench, models):
         v = models[k].dropna()
         a1.plot(v.index, -v.values, lw=1.5, color=MODEL_COLORS.get(k, GREY),
                 label=MODEL_LABELS.get(k, k))
-    a1.set_ylabel("Daily return (%)")
+    a1.set_ylabel("Return and 1% return-quantile\nthreshold (%)")
     a1.set_title(f"Same prompt, {'two' if len(shown) == 2 else len(shown)} models")
     legend_below(a1, ncol=2, y=-0.20, fontsize=9)
 

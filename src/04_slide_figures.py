@@ -36,14 +36,16 @@ GREY = "#6E6E6E"
 PRIMARY = ("HS", "GARCH-t", "NN-t", "Chronos-T5", "LLM-series", "LLM-series+state",
            "LLM-dated", "LLM-dated+news", "Open-1.5B")
 
+# Projection scale. A figure on a slide is read from the back of a room, not from a
+# laptop: type is sized so a panel stays legible when the frame shrinks it.
 mpl.rcParams.update({
-    "figure.figsize": (10, 4.6),
-    "font.size": 13,
-    "axes.titlesize": 14,
-    "axes.labelsize": 13,
-    "legend.fontsize": 11,
-    "xtick.labelsize": 11,
-    "ytick.labelsize": 11,
+    "figure.figsize": (6.4, 3.4),
+    "font.size": 16,
+    "axes.titlesize": 17,
+    "axes.labelsize": 16,
+    "legend.fontsize": 14,
+    "xtick.labelsize": 14,
+    "ytick.labelsize": 14,
     "axes.spines.top": False,
     "axes.spines.right": False,
     "axes.grid": True,
@@ -191,7 +193,7 @@ def fig_power(bench):
     ax.set_xlabel("Out-of-sample days")
     ax.set_ylabel("Smallest detectable\ntrue breach rate (%)")
     ax.set_title("Two-sided Kupiec LR$_{UC}$ at the 5% level, exact binomial power")
-    legend_below(ax, ncol=2, y=-0.22, fontsize=10)
+    legend_below(ax, ncol=2, y=-0.22, fontsize=12)
     save(fig, "s_power")
     i500, i5541 = list(ns).index(500), None
     return {"detect_power_500": round(100 * pw[i500], 2),
@@ -210,7 +212,7 @@ def fig_clamp(bolt):
     lv = sorted(piv.columns)
     low = [x for x in lv if x <= 0.10]
 
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(12.5, 4.4),
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(7.8, 3.2),
                                  gridspec_kw={"width_ratios": [1.55, 1]})
 
     for x in low:
@@ -220,7 +222,7 @@ def fig_clamp(bolt):
                 label=f"requested {x:.0%}")
     a1.set_ylabel("VaR (%)")
     a1.set_title("Three requested levels, one line")
-    legend_below(a1, ncol=3, y=-0.18, fontsize=10)
+    legend_below(a1, ncol=3, y=-0.18, fontsize=12)
 
     share = [float(np.isclose(piv[x], piv[0.10], rtol=0, atol=0).mean()) for x in low]
     a2.bar([f"{x:.0%}" for x in low], [100 * s for s in share],
@@ -242,7 +244,7 @@ def fig_clamp(bolt):
 def fig_thresholds(bench, models):
     """One asset, one test span, four thresholds."""
     keys = [k for k in ("HS", "GARCH-t", "Chronos-T5", "LLM-series") if k in models]
-    fig, ax = plt.subplots(figsize=(12, 4.6))
+    fig, ax = plt.subplots(figsize=(7.4, 3.3))
     ax.plot(bench.index, bench["ret"], lw=0.7, color="#BBBBBB",
             label="Realised return", zorder=1)
     for k in keys:
@@ -251,7 +253,7 @@ def fig_thresholds(bench, models):
                 label=MODEL_LABELS.get(k, k), zorder=2)
     ax.set_ylabel("Return and 1% return-quantile\nthreshold (%)")
     ax.set_title(f"{ASSETS[ASSET]['label']}: the same question, four answers")
-    legend_below(ax, ncol=3, y=-0.16, fontsize=10)
+    legend_below(ax, ncol=3, y=-0.16, fontsize=12)
     save(fig, "s_thresholds")
     return {}
 
@@ -261,7 +263,7 @@ def fig_backtest(bench, models):
     bt = al.backtest_table(bench["ret"], models, alpha=ALPHA)
     lb = al.leaderboard(bt, alpha=ALPHA)
 
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(13.5, 4.8))
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(8.4, 3.5))
     b = bt.sort_values("observed")
     n = int(b["n"].max())
     exp, se = ALPHA * n, np.sqrt(ALPHA * (1 - ALPHA) * n)
@@ -272,7 +274,7 @@ def fig_backtest(bench, models):
             color=[MODEL_COLORS.get(m, GREY) for m in b["model"]], height=0.62)
     a1.set_xlabel(f"Breaches in {n} days at {ALPHA:.0%}")
     a1.grid(axis="y", visible=False)
-    legend_below(a1, ncol=2, y=-0.16, fontsize=10)
+    legend_below(a1, ncol=2, y=-0.16, fontsize=12)
     a1.set_title("Coverage")
 
     d = lb.sort_values("pinball", ascending=False)
@@ -321,7 +323,7 @@ def fig_disagreement(models):
     lam = np.linalg.eigvalsh(R.values)[::-1]
     pc1 = float(lam[0] / len(R))
 
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(13.0, 4.4),
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(8.1, 3.2),
                                  gridspec_kw={"width_ratios": [1.7, 1]})
     a1.fill_between(sp.index, -sp["max"], -sp["min"], color=al.MAIN_BLUE, alpha=0.18,
                     label="Range across models")
@@ -329,17 +331,21 @@ def fig_disagreement(models):
     a1.set_ylabel("1% return-quantile\nthreshold (%)")
     a1.set_title(f"Median spread {sp['range'].median():.2f}pp, widest "
                  f"{sp['range'].max():.2f}pp")
-    legend_below(a1, ncol=2, y=-0.20, fontsize=10)
+    legend_below(a1, ncol=2, y=-0.20, fontsize=12)
 
     im = a2.imshow(R.values, cmap="Blues", vmin=0, vmax=1)
     a2.set_xticks(range(len(R)))
     a2.set_yticks(range(len(R)))
-    a2.set_xticklabels(R.columns, rotation=90, fontsize=7)
-    a2.set_yticklabels(R.index, fontsize=7)
+    short = [c.replace("LLM-", "L:").replace("Chronos-", "C-")
+             .replace("Open-", "Q").replace("+state", "+st")
+             .replace("+news", "+nw") for c in R.columns]
+    a2.set_xticklabels(short, rotation=90, fontsize=12)
+    a2.set_yticklabels(short, fontsize=12)
     a2.grid(visible=False)
     a2.set_title(f"Median pairwise $\\rho$ = {np.median(off):.2f}\n"
                  f"$\\lambda_1(R)/N$ = {pc1:.2f}", fontsize=12)
-    fig.colorbar(im, ax=a2, fraction=0.046)
+    cb2 = fig.colorbar(im, ax=a2, fraction=0.046)
+    cb2.ax.tick_params(labelsize=12)
 
     fig.tight_layout()
     save(fig, "s_disagreement")
@@ -360,7 +366,7 @@ def fig_llm(bench, models):
     wide = pd.DataFrame({k: models[k] for k in
                          [*keys, "HS", "GARCH-t"] if k in models}).dropna()
 
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(13, 4.6),
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(8.1, 3.3),
                                  gridspec_kw={"width_ratios": [1.35, 1]})
     a1.plot(bench.index, bench["ret"], lw=0.6, color="#CCCCCC", label="Realised return")
     for k in keys:
@@ -371,19 +377,19 @@ def fig_llm(bench, models):
             color=MODEL_COLORS["GARCH-t"], label=MODEL_LABELS["GARCH-t"])
     a1.set_ylabel("Return and 1% return-quantile\nthreshold (%)")
     a1.set_title("The LLM states a threshold")
-    legend_below(a1, ncol=2, y=-0.20, fontsize=9)
+    legend_below(a1, ncol=2, y=-0.20, fontsize=12)
 
     c = wide.corr()
     im = a2.imshow(c.values, cmap="Blues", vmin=0, vmax=1)
     a2.set_xticks(range(len(c)))
-    a2.set_xticklabels(c.columns, rotation=35, ha="right", fontsize=9)
+    a2.set_xticklabels(c.columns, rotation=35, ha="right", fontsize=12)
     a2.set_yticks(range(len(c)))
-    a2.set_yticklabels(c.columns, fontsize=9)
+    a2.set_yticklabels(c.columns, fontsize=12)
     a2.grid(False)
     for i in range(len(c)):
         for j in range(len(c)):
             a2.text(j, i, f"{c.values[i, j]:.2f}", ha="center", va="center",
-                    fontsize=9, color="white" if c.values[i, j] > 0.6 else "#333333")
+                    fontsize=12, color="white" if c.values[i, j] > 0.6 else "#333333")
     a2.set_title("Correlation of daily forecasts")
     fig.colorbar(im, ax=a2, fraction=0.045)
 
@@ -437,7 +443,7 @@ def fig_news(bench, models):
 
     diff = pd.Series(loss(a) - loss(b), index=idx)
 
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(13.2, 4.5),
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(8.2, 3.2),
                                  gridspec_kw={"width_ratios": [1, 1.25]})
     a1.bar(bench.index, cov.values, width=2.0, color=al.MAIN_BLUE, alpha=0.75)
     a1.set_ylabel("Headlines in the\nas-of window")
@@ -475,7 +481,7 @@ def fig_open(bench, models):
         print("  skip s_open: open-weights runs missing")
         return {}
 
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(13.2, 4.8),
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(8.2, 3.5),
                                  gridspec_kw={"width_ratios": [1.5, 1]})
     a1.plot(bench.index, bench["ret"], lw=0.6, color="#CCCCCC", label="Realised return")
     # Left panel: the two legs the laboratory actually runs. The larger models are a
@@ -487,20 +493,23 @@ def fig_open(bench, models):
                 label=MODEL_LABELS.get(k, k))
     a1.set_ylabel("Return and 1% return-quantile\nthreshold (%)")
     a1.set_title(f"Same prompt, {'two' if len(shown) == 2 else len(shown)} models")
-    legend_below(a1, ncol=2, y=-0.20, fontsize=9)
+    legend_below(a1, ncol=2, y=-0.20, fontsize=12)
 
     names = ["LLM-series", *keys]
     frac = [100 * models[k].round(2).nunique() / max(models[k].notna().sum(), 1)
             for k in names]
-    a2.bar([MODEL_LABELS.get(k, k).split(" (")[0] for k in names], frac,
+    # Short bar labels: the long form is unreadable once the panel is on a slide.
+    short = {"LLM-series": "Claude Haiku", "Open-1.5B": "Qwen 1.5B",
+             "Open-3B": "Qwen 3B", "Open-7B": "Qwen 7B", "Open-14B": "Qwen 14B"}
+    a2.bar([short.get(k, k) for k in names], frac,
            color=[MODEL_COLORS.get(k, GREY) for k in names], width=0.6)
     a2.set_ylabel("Distinct VaR values\n(% of forecast days)")
     a2.set_ylim(0, 108)
     a2.set_title("How much of the output is actually varying?")
     a2.grid(axis="x", visible=False)
-    a2.tick_params(axis="x", labelrotation=18, labelsize=9)
+    a2.tick_params(axis="x", labelrotation=18, labelsize=13)
     for i, v in enumerate(frac):
-        a2.text(i, v + 2.5, f"{v:.0f}%", ha="center", fontsize=11)
+        a2.text(i, v + 2.5, f"{v:.0f}%", ha="center", fontsize=12)
 
     fig.tight_layout()
     save(fig, "s_open")
@@ -549,14 +558,14 @@ def fig_news_assets():
         return {}
     r = pd.DataFrame(rows)
 
-    fig, ax = plt.subplots(figsize=(11, 4.4))
+    fig, ax = plt.subplots(figsize=(6.8, 3.2))
     col = [al.FOREST if x < 0 else al.IDA_RED for x in r["diff"]]
     ax.barh(r["label"], r["diff"], color=col, height=0.6)
     ax.axvline(0, color=GREY, lw=1.2)
     for i, (d_, p, n) in enumerate(zip(r["diff"], r["p"], r["n"])):
         ax.text(d_ + (0.0002 if d_ >= 0 else -0.0002), i,
                 f"p = {p:.3f}  (n = {n})", va="center",
-                ha="left" if d_ >= 0 else "right", fontsize=11)
+                ha="left" if d_ >= 0 else "right", fontsize=12)
     ax.set_xlim(min(r["diff"].min() * 1.9, -0.0035), max(r["diff"].max() * 2.6, 0.005))
     ax.set_xlabel("Mean pinball loss, with headlines minus without "
                   "(negative = headlines helped)")
@@ -614,16 +623,16 @@ def fig_sampling():
     col = {"sampled": al.MAIN_BLUE, "elicited": "#1B7837"}
     lab = {"sampled": "Sampled, 1000 draws", "elicited": "Asked for the quantile"}
 
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(13.0, 4.4))
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(8.1, 3.2))
     for k, off in (("sampled", -0.5), ("elicited", 0.5)):
         a1.bar(x + off * w, piv[k].loc[assets, "pinball"], width=w, color=col[k],
                alpha=0.9, label=lab[k])
     a1.set_xticks(x)
-    a1.set_xticklabels([ASSETS[a]["label"] for a in assets], fontsize=10)
+    a1.set_xticklabels([ASSETS[a]["label"] for a in assets], fontsize=12)
     a1.set_ylabel("Mean pinball loss at 1%")
     a1.set_title("Sampling scores better on every asset")
     a1.grid(axis="x", visible=False)
-    legend_below(a1, ncol=2, y=-0.20, fontsize=10)
+    legend_below(a1, ncol=2, y=-0.20, fontsize=12)
 
     for k, off in (("sampled", -0.5), ("elicited", 0.5)):
         a2.bar(x + off * w, piv[k].loc[assets, "rate"], width=w, color=col[k], alpha=0.9,
@@ -631,11 +640,11 @@ def fig_sampling():
     a2.axhline(100 * ALPHA, color=al.IDA_RED, lw=1.6, ls="--",
                label=f"nominal {ALPHA:.0%}")
     a2.set_xticks(x)
-    a2.set_xticklabels([ASSETS[a]["label"] for a in assets], fontsize=10)
+    a2.set_xticklabels([ASSETS[a]["label"] for a in assets], fontsize=12)
     a2.set_ylabel("Breach rate (%)")
     a2.set_title("And neither one covers")
     a2.grid(axis="x", visible=False)
-    legend_below(a2, ncol=3, y=-0.20, fontsize=10)
+    legend_below(a2, ncol=3, y=-0.20, fontsize=12)
 
     fig.tight_layout()
     save(fig, "s_sampling")
@@ -666,19 +675,19 @@ def fig_pinball(rets):
     is nearly indistinguishable on 500 days of data.
     """
     r = rets["ret"].dropna().values
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(12.6, 4.4))
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(7.8, 3.2))
 
     err = np.linspace(-3, 3, 601)
     for lev, c in ((ALPHA, al.IDA_RED), (ALPHA_SECONDARY, al.MAIN_BLUE)):
         a1.plot(err, np.where(err < 0, (lev - 1) * err, lev * err), lw=2, color=c,
                 label=fr"$\alpha = {lev:.0%}$".replace("%", r"\%"))
     a1.axvline(0, color=GREY, lw=1, zorder=0)
-    a1.annotate(r"slope $\alpha - 1$", xy=(-2.2, 2.15), fontsize=11, color=GREY)
-    a1.annotate(r"slope $\alpha$", xy=(1.2, 0.30), fontsize=11, color=GREY)
+    a1.annotate(r"slope $\alpha - 1$", xy=(-2.2, 2.15), fontsize=12, color=GREY)
+    a1.annotate(r"slope $\alpha$", xy=(1.2, 0.30), fontsize=12, color=GREY)
     a1.set_xlabel(r"Forecast error $r_t - q_t$ (%)")
     a1.set_ylabel("Pinball loss")
     a1.set_title("At 1%, an over-forecast costs 99 times less")
-    legend_below(a1, ncol=2, y=-0.22, fontsize=11)
+    legend_below(a1, ncol=2, y=-0.22, fontsize=12)
 
     for lev, c in ((ALPHA, al.IDA_RED), (ALPHA_SECONDARY, al.MAIN_BLUE)):
         q0 = float(np.quantile(r, lev))
@@ -691,7 +700,7 @@ def fig_pinball(rets):
     a2.set_xlabel("Candidate quantile (%)")
     a2.set_ylabel("Mean loss, relative to its minimum")
     a2.set_title("Minimised at the truth, and flat around it at 1%")
-    legend_below(a2, ncol=2, y=-0.22, fontsize=11)
+    legend_below(a2, ncol=2, y=-0.22, fontsize=12)
 
     fig.tight_layout()
     save(fig, "s_pinball")
@@ -735,7 +744,7 @@ def fig_fz(rets):
     L = fz0(V, E)
     i, j = np.unravel_index(np.argmin(L), L.shape)
 
-    fig, ax = plt.subplots(figsize=(8.6, 4.8))
+    fig, ax = plt.subplots(figsize=(5.3, 3.5))
     cs = ax.contourf(V, E, L, levels=28, cmap="Blues_r", alpha=0.9)
     ax.contour(V, E, L, levels=14, colors="white", linewidths=0.5, alpha=0.6)
     ax.plot(v0, e0, "o", color=al.IDA_RED, ms=9, label="Sample (VaR, ES)")
@@ -745,8 +754,9 @@ def fig_fz(rets):
     ax.set_ylabel(r"Candidate expected shortfall $e$ (%)")
     ax.set_title("One surface, one minimum, two coordinates")
     ax.grid(visible=False)
-    fig.colorbar(cs, ax=ax, label="FZ$_0$ loss")
-    legend_below(ax, ncol=2, y=-0.24, fontsize=11)
+    cb = fig.colorbar(cs, ax=ax, label="FZ$_0$ loss")
+    cb.ax.tick_params(labelsize=12)
+    legend_below(ax, ncol=2, y=-0.24, fontsize=12)
     fig.tight_layout()
     save(fig, "s_fz")
 
@@ -770,7 +780,7 @@ def fig_floor():
     """
     rng = np.random.default_rng(SEED)
     reps, sizes = 3000, [20, 60, 120, 250, 500, 1000, 2000, 5000]
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=(12.8, 4.4))
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(7.9, 3.2))
 
     facts = {"floor_mc_reps": reps}
     for lev, c, tag in ((ALPHA, al.IDA_RED, "01"), (ALPHA_SECONDARY, al.MAIN_BLUE, "05")):
@@ -785,11 +795,11 @@ def fig_floor():
         facts[f"floor_sd_2000_{tag}"] = round(sd[sizes.index(2000)], 3)
     a1.set_xscale("log")
     a1.set_xticks(sizes)
-    a1.set_xticklabels([str(s) for s in sizes], fontsize=9)
+    a1.set_xticklabels([str(s) for s in sizes], fontsize=12)
     a1.set_xlabel("Sample paths drawn")
     a1.set_ylabel("SD of the estimated quantile\n(Student-$t_5$ draws)")
     a1.set_title(f"Simulation: {reps} replications per point")
-    legend_below(a1, ncol=2, y=-0.22, fontsize=11)
+    legend_below(a1, ncol=2, y=-0.22, fontsize=12)
 
     lo = PRECOMP / f"chronos_t5_{ASSET}.csv"
     hi = PRECOMP / f"chronos_t5_{ASSET}_N2000.csv"
@@ -814,7 +824,7 @@ def fig_floor():
             a2.bar(np.arange(3) + (k - 0.5) * w, share, width=w, color=c, alpha=0.85,
                    label=fr"$\alpha = {lev:.0%}$".replace("%", r"\%"))
             for x, v in zip(np.arange(3) + (k - 0.5) * w, share):
-                a2.text(x, v + 1.8, f"{v:.0f}%", ha="center", fontsize=10)
+                a2.text(x, v + 1.8, f"{v:.0f}%", ha="center", fontsize=12)
             facts[f"t5_rerun_sd_{tag}"] = round(float((j["var_hi"] - j["var_lo"]).std()), 3)
             facts[f"t5_rerun_same_{tag}"] = round(share[0], 1)
             facts[f"t5_rerun_step_{tag}"] = round(step, 3)
@@ -825,7 +835,7 @@ def fig_floor():
         a2.set_ylabel("Share of the 500 days (%)")
         a2.set_title(f"Measured: {ASSETS[ASSET]['label']}, 500 paths against 2000")
         a2.grid(axis="x", visible=False)
-        legend_below(a2, ncol=2, y=-0.22, fontsize=11)
+        legend_below(a2, ncol=2, y=-0.22, fontsize=12)
     else:
         print("  s_floor: right panel skipped, no 2000-path run for this asset")
 

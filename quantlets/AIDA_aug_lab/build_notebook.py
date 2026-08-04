@@ -18,8 +18,21 @@ MD, CODE = "markdown", "code"
 CELLS = []
 
 
-def md(text):
-    CELLS.append((MD, text.strip("\n")))
+BADGE = {
+    "required": "**`REQUIRED`**",
+    "interpret": "**`INTERPRET`** --- write two or three sentences, then move on",
+    "optional": "**`OPTIONAL`** --- only if your group is ahead",
+    "slow": "**`SLOW / PRECOMPUTED FALLBACK AVAILABLE`** --- the shipped file is "
+            "loaded automatically if the live run is unavailable",
+}
+
+
+def md(text, tag=None):
+    """A markdown cell. `tag` prints one of the four lab badges above it."""
+    body = text.strip("\n")
+    if tag:
+        body = f"{BADGE[tag]}\n\n{body}"
+    CELLS.append((MD, body))
 
 
 def code(text):
@@ -58,7 +71,7 @@ $r_t < -\mathrm{VaR}_t$. Charts are drawn on the return axis with the tail on th
 """)
 
 md(r"""
-## 0. Setup
+## 1. Setup and reproducibility checks
 
 Run this cell first. It works in three situations: inside the course repository, on
 Colab with `aida_lab_data.zip` uploaded, and on Colab with nothing but a network
@@ -67,7 +80,7 @@ connection (it will download the price series live, and say so).
 **You need no API key at any point.** The language-model forecasts and the news
 headlines are shipped as data. The only thing fetched at run time is the Chronos model
 itself, from Hugging Face, which is a public download.
-""")
+""", "required")
 
 code(r"""
 import os, sys, pathlib
@@ -103,7 +116,7 @@ bench.head()
 """)
 
 md(r"""
-### 0.1 How much can 500 days at 1% actually tell you?
+### 1.1 Power: how much can 500 days at 1% actually tell you?
 
 A backtest is a hypothesis test, and a hypothesis test needs events. At
 $\alpha = 1\%$ a 500-day span expects **five** breaches. Five. The cell below computes
@@ -115,7 +128,7 @@ This is the binding constraint of the whole laboratory and it is not hidden anyw
 the results. Read every verdict in section 4 through it: a model that "passes" at 1% on
 500 days has cleared a low bar, and the classical models are also shown on the certified
 5541-day run at the end of section 4, where the bar is much higher.
-""")
+""", "required")
 
 code(r"""
 from scipy import stats
@@ -141,7 +154,7 @@ print(f"\n  our span is 500 days -> {detectable(500) / ALPHA:.1f}x nominal is th
 """)
 
 md(r"""
-## 1. The transparent benchmark: historical simulation
+## 2. The historical-simulation benchmark
 
 No model, no parameters, no distribution. Sort the window and read off the quantile.
 
@@ -156,7 +169,7 @@ $$\widehat{\mathrm{VaR}}^{\mathrm{HS}}_{t}(\alpha) = -\,\widehat{Q}_{\alpha}
 - At $\alpha = 1\%$ a 250-day window has **two and a half** observations below the
   quantile. The estimator is reading two or three days. Everything historical simulation
   does at this level rests on them.
-""")
+""", "required")
 
 code(r"""
 # EXERCISE. Complete the function, then run the cell below it.
@@ -197,7 +210,7 @@ window sit so far out in 2023?
 """)
 
 md(r"""
-## 2. A time-series foundation model: Chronos
+## 3. Chronos-Bolt: a capability audit
 
 Chronos is pretrained on a large corpus of time series and applied here with **no
 fitting on this asset at all**. Two heads, and the difference between them is the
@@ -213,7 +226,7 @@ $r = 100\log(\hat P_t / P_{t-1})$, a monotone transform, so a price quantile map
 the return quantile of the same level. Feeding it the return series directly was tried
 in the certified pipeline: returns are near-zero-mean noise and the model collapses to
 a predictive standard deviation of 0.14 against a realised 1.22.
-""")
+""", "required")
 
 code(r"""
 !pip install -q chronos-forecasting
@@ -303,7 +316,7 @@ print(f"Chronos-Bolt 10% VaR: mean {bolt10.mean():.2f}, {len(bolt10)} dates")
 """)
 
 md(r"""
-### 2.1 Chronos-T5: sampling, and a real 5% quantile
+### 4. Chronos-T5: the sampling-resolution experiment
 
 The sampling head draws `num_samples` price paths and the quantile is read off the
 sample distribution. The sample count sets the noise floor, and at our level it is the
@@ -316,7 +329,7 @@ reported about as often as never.
 
 It costs about 3 seconds per forecast on a CPU, so the full 500-day run is precomputed
 and shipped. Reproduce a slice of it live, then check your slice against the file.
-""")
+""", "slow")
 
 code(r"""
 t5_pre = al.load_precomputed(f"chronos_t5_{ASSET}.csv")
@@ -361,7 +374,7 @@ a sampling model to three decimal places?
 """)
 
 md(r"""
-## 3. The LLM as a risk forecaster
+## 5. The LLM: output parsing and logical checks
 
 The method is the one in Pele et al. (2025), *In the Beginning was the Word: LLM-VaR
 and LLM-ES* (Expert Systems with Applications). The return series is written out as
@@ -389,7 +402,7 @@ test. How they are aligned to the forecast dates is section 3.1, and it is the p
 worth arguing with.
 
 This section works with the first two. The last two are section 3.1's business.
-""")
+""", "required")
 
 code(r"""
 MODEL = "claude-haiku-4-5"
@@ -427,7 +440,7 @@ if len(llm) == 2:
 """)
 
 md(r"""
-### 3.1 Does real text move the number?
+### 6. Dated versus dated+news: does real text move the number?
 
 The two configurations above contain no words. This one does: real headlines from EODHD,
 attached to each forecast date under one rule.
@@ -452,7 +465,7 @@ pairing them with the anonymised configuration would confound two effects:
 | `dated+news` | yes | yes | ← the treatment |
 
 The difference between the last two identifies the contribution of the text alone.
-""")
+""", "required")
 
 code(r"""
 news = al.load_precomputed(f"../data/news/headlines_{ASSET}.csv")
@@ -550,7 +563,7 @@ you would use to separate the two.
 """)
 
 md(r"""
-## 3.2 The same experiment, with a model you run yourself
+### 6.1 The same experiment, with a model you run yourself
 
 Everything above came from a commercial endpoint. If you have a key, section 3 is
 reproducible; if you do not, it is a table someone else computed. So the same prompt is
@@ -565,7 +578,7 @@ way Chronos was, running on this machine.
 The prompt, the JSON schema and the parser are **imported** from the commercial stage
 rather than copied, so the two legs differ in exactly one thing: which model reads the
 prompt.
-""")
+""", "slow")
 
 code(r"""
 open_llm = {}
@@ -676,7 +689,7 @@ endpoint you cannot inspect.
 """)
 
 md(r"""
-## 4. Backtesting
+## 7. Coverage, pinball loss and disagreement
 
 Three quantities, and they answer different questions.
 
@@ -697,7 +710,7 @@ $$L_\alpha = \frac{1}{T}\sum_{t=1}^{T}\left(\alpha - \mathbf{1}\{r_t < q_t\}\rig
 
 The breach count is not a scoring rule: a model can hit 5% exactly with thresholds that
 are wildly wrong day by day.
-""")
+""", "required")
 
 code(r"""
 models = {
@@ -736,7 +749,7 @@ plt.tight_layout(); plt.show()
 """)
 
 md(r"""
-### 4.1 Is the ranking real?
+### 7.1 Ranking against calibration: is the gap real?
 
 A leaderboard is an ordering. Whether the gap between two rows is larger than sampling
 noise is a separate question, and the Diebold–Mariano test on the loss differential is
@@ -773,7 +786,7 @@ what would you say about the other?
 """)
 
 md(r"""
-## 5. How much do the models actually disagree?
+### 7.2 How much do the models actually disagree?
 
 Different names, different vendors, different training corpora. That does not make them
 independent forecasts. The daily spread is the quantity that tells you whether averaging
@@ -785,7 +798,7 @@ R_t = \frac{\max_i \widehat{\mathrm{VaR}}_{i,t}}{\min_i \widehat{\mathrm{VaR}}_{
 
 This is the idea behind SYNCRISK: correlated risk *assessments* are themselves a source
 of systemic risk, because everyone de-risks on the same day.
-""")
+""", "optional")
 
 code(r"""
 spread = al.disagreement({k: v for k, v in models.items() if k != "Chronos-Bolt"})
@@ -812,7 +825,34 @@ other? How would you tell the two cases apart from the numbers alone?
 """)
 
 md(r"""
-## 6. What to take away
+### Five questions to answer before you leave
+
+Write two or three sentences for each. They are the questions the lecture was built
+around, and the ones the report from your group should answer.
+
+1. **Pipeline validity.** You asked Chronos-Bolt for the 1% quantile and the call
+   succeeded. What evidence did you use to decide whether the returned number *was*
+   the 1% quantile, and what would you have concluded without that check?
+
+2. **Ranking against calibration.** Order the models by pinball loss, then by their
+   Kupiec verdict. Are the two orderings the same? Which question does each answer, and
+   which one would you take to a risk committee?
+
+3. **Power.** Your span expects five breaches. Given the detectable-rate table in
+   section 1.1, what is the smallest true breach rate this backtest could have
+   rejected? What does a "pass" therefore entitle you to say?
+
+4. **Contamination.** The `dated` configuration names the asset and the date. What could
+   the model be doing on those dates other than forecasting, and which of your results
+   would change if it were? Note what you can establish from outputs alone and what you
+   cannot.
+
+5. **Experimental control.** Why is `dated` the right comparison for `dated+news`, and
+   what would you have measured had you compared `series` with `dated+news` instead?
+""", "interpret")
+
+md(r"""
+## 8. What to take away, and the optional extension
 
 1. **A zero-shot foundation model produces a number for any question you ask it.**
    Whether that number answers the question you asked is a separate matter, and the

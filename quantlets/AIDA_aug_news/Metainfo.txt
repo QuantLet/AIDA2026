@@ -1,0 +1,15 @@
+Name of QuantLet: AIDA_aug_news
+
+Published in: AIDA Summer School 2026 - AI in Financial Risk Modelling (August course)
+
+Description: Real headlines from EODHD aligned to forecast dates under an audited as-of rule: each asset's own market close, consecutive cutoffs tiling the calendar, and every publication timestamp kept so the rule can be checked afterwards.
+
+Keywords: value-at-risk, backtesting, kupiec, christoffersen, diebold-mariano, foundation-model, large-language-model, zero-shot, risk-management, financial-econometrics
+
+Author: Daniel Traian Pele
+
+Submitted: 2026-07-31
+
+Datafile: EODHD news API
+
+Output: data/news/headlines_*.csv, coverage_*.csv

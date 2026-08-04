@@ -1,0 +1,15 @@
+Name of QuantLet: AIDA_aug_lab
+
+Published in: AIDA Summer School 2026 - AI in Financial Risk Modelling (August course)
+
+Description: The student notebook and its helper module: loaders, historical simulation, the pinball loss, the coverage tests, Diebold-Mariano and the plots, depending only on numpy, pandas, scipy and matplotlib so it runs on a bare Colab session.
+
+Keywords: value-at-risk, backtesting, kupiec, christoffersen, diebold-mariano, foundation-model, large-language-model, zero-shot, risk-management, financial-econometrics
+
+Author: Daniel Traian Pele
+
+Submitted: 2026-07-31
+
+Datafile: aida_lab_data.zip
+
+Output: figures produced in-notebook

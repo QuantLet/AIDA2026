@@ -1,0 +1,15 @@
+Name of QuantLet: AIDA_aug_llm
+
+Published in: AIDA Summer School 2026 - AI in Financial Risk Modelling (August course)
+
+Description: LLM-VaR through a commercial endpoint: the return series serialised as text, the tail quantile asked for in words, four information sets, and a parser that counts the replies that fail rather than dropping them.
+
+Keywords: value-at-risk, backtesting, kupiec, christoffersen, diebold-mariano, foundation-model, large-language-model, zero-shot, risk-management, financial-econometrics
+
+Author: Daniel Traian Pele
+
+Submitted: 2026-07-31
+
+Datafile: data/lab/returns_*.csv, data/news/headlines_*.csv
+
+Output: precomputed/llm_*.csv

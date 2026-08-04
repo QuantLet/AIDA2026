@@ -1,0 +1,1308 @@
+%=============================================================================
+% AI in Financial Risk Modelling -- August course, lecture (2 hours)
+% AIDA Summer School 2026, physical. Daniel Traian Pele
+%
+% Companion to the 2-hour coding laboratory (notebook/AIDA_Risk_Lab.ipynb). Every
+% empirical claim here is one the students reproduce themselves that afternoon.
+%
+% THE SPINE. The 27 July hour established that VaR = sigma_t * q_nu(alpha) splits into
+% a learnable scale and a barely-learnable shape. This lecture takes the next step:
+% what happens when the model was PRETRAINED somewhere else -- a time-series foundation
+% model, or a language model -- and applied here with no fitting at all. The question
+% stops being "which model wins" and becomes:
+%
+%     Can you tell, from the output alone, whether the model answered your question?
+%
+% Four failures carry the argument, ordered by how quietly they fail:
+%   1. Chronos-Bolt returns the 10% quantile when asked for 1%. Nothing errors.
+%   2. An LLM returns a well-formed number that need not be a quantile of anything.
+%   3. An open-weights model passes every validity check and is still rejected.
+%   4. A 500-day backtest at 1% passes eight forecasts out of ten, because it
+%      has 80% power only against a true rate of 2.5% or worse.
+%
+% CONVENTIONS (IDA house style, inherited from slides/ai_risk_online_2026-07-27.tex)
+%   - alpha = 1% throughout. VaR and ES stated at their level, never as 99%/95%.
+%   - VaR and ES quoted as POSITIVE magnitudes; a breach is r_t < -VaR_t(alpha).
+%   - Everything DRAWN on returns, tail of interest on the LEFT.
+%   - Figures: matplotlib, transparent background (the slide carries a gradient),
+%     legend OUTSIDE the axes and centred BELOW them. No TikZ anywhere.
+%   - Bullets run to TWO levels: the claim, then the evidence or the mechanism.
+%   - Every empirical frame carries a \quantlet mark naming the package behind it.
+%   - Every inline number traces to precomputed/slide_facts_SPX.csv or
+%     lab_backtest_SPX.csv and is checked by src/05_verify_slide_claims.py.
+%
+% EMPIRICAL SOURCE: ../data/ and ../precomputed/ (see ../README.md for provenance)
+% S&P 500, 500 out-of-sample days, 2023-01-04 to 2024-12-30, alpha = 1%.
+%
+% DELIVERY: 120 min. Acts III and IV are the core. Act II compresses to 15 minutes for
+% an audience that attended the 27 July hour.
+%=============================================================================
+\documentclass[9pt, aspectratio=169, t]{beamer}
+\input{../../beamer-deck/preamble}
+
+\graphicspath{{../../beamer-deck/}{../../beamer-deck/figures/}%
+              {../figures/slides/}{../figures/}{../figures/eswa/}%
+              {../../aida-risk/figures/slides/}{../../aida-risk/figures/}}
+\renewcommand{\footercaption}{AIDA Summer School 2026 --- AI in Financial Risk Modelling}
+\addbibresource{../../beamer-deck/refs.bib}
+
+\newcommand{\qlbase}{https://github.com/QuantLet/AIDA2026/tree/main/august-course}
+\providecommand{\Prob}{\mathbb{P}}
+\newcommand{\scale}[1]{\textcolor{MainBlue}{#1}}
+\newcommand{\shape}[1]{\textcolor{IDAred}{#1}}
+% A figure caption is prose, deliberately: it reads as one sentence about the figure.
+% Bullets are for the body of a text frame.
+\newcommand{\takeaway}[1]{%
+  \vspace{0.15em}\par\centering\small\textcolor{DarkGray}{#1}\par}
+
+\title[AI in Financial Risk Modelling]{AI in Financial Risk Modelling}
+\subtitle{Can foundation models produce valid risk forecasts?}
+\author[D.T. Pele]{Daniel Traian PELE}
+\institute{Bucharest University of Economic Studies --- Dept.\ of Statistics and Econometrics \\
+  Institute for Digital Assets (IDA) $\cdot$ AI4EFin $\cdot$ MSCA Digital Finance \\
+  Institute for Economic Forecasting, Romanian Academy}
+\date{AIDA Summer School 2026 \\ August 2026}
+
+\begin{document}
+
+%--- TITLE -------------------------------------------------------------------
+\begin{frame}[plain]
+  \titlepage
+\end{frame}
+
+%--- THE QUESTION ------------------------------------------------------------
+\begin{frame}{Four ways to produce one number}
+  \begin{itemize}
+    \item Tomorrow's $1\%$ value-at-risk, from four kinds of model.
+  \end{itemize}
+  \begin{itemize}
+    \item A \textbf{statistical benchmark} you can compute by hand.
+      \begin{itemize}
+        \item Sort the window, read off the quantile. No parameters at all.
+      \end{itemize}
+    \item A \textbf{time-series foundation model}, pretrained elsewhere.
+      \begin{itemize}
+        \item It has never seen this asset, and you cannot inspect what it has seen.
+      \end{itemize}
+    \item A \textbf{commercial language model}, handed the returns as text.
+      \begin{itemize}
+        \item No VaR head, no fitting: the number comes out of prompted generation.
+      \end{itemize}
+    \item An \textbf{open-weights language model} you run yourself.
+      \begin{itemize}
+        \item Three gigabytes, a laptop, and no key. This afternoon, you will.
+      \end{itemize}
+  \end{itemize}
+  \vspace{0.4em}
+    \begin{alertblock}{The question is not which of them is cleverest}
+    \begin{itemize}
+      \item It is whether you can tell, \emph{from the output alone}, that the model
+            answered the question you asked.
+    \end{itemize}
+  \end{alertblock}
+\end{frame}
+
+%--- ROADMAP -----------------------------------------------------------------
+\begin{frame}{Where these two hours go}
+  \begin{enumerate}
+    \item What a risk forecast is, and why $1\%$ is a different problem from $5\%$
+    \item The classical answers: historical simulation, GARCH, quantile regression
+    \item Time-series foundation models: pretraining, zero-shot, and a quantile grid
+    \item Language models: commercial and open weights, and what they really track
+    \item Validation: coverage, clustering, loss differentials, contamination, power
+  \end{enumerate}
+  \vspace{0.7em}
+  \begin{block}{The empirical base}
+    \begin{itemize}
+      \item S\&P 500, 500 out-of-sample days, 2023-01-04 to 2024-12-30, $\alpha = 1\%$.
+      \item Ten forecasts in the primary comparison, plus three size diagnostics.
+      \item One frozen protocol, five assets in the laboratory.
+      \item Every number regenerated by one script and checked by another.
+    \end{itemize}
+  \end{block}
+\end{frame}
+
+%=============================================================================
+\begin{frame}[plain]
+  \centering\vfill
+  {\Large\textcolor{IDAred}{Act I}}\\[0.4em]
+  {\large What is a risk forecast?}
+  \vfill
+\end{frame}
+
+\begin{frame}{One targets the middle, the other the tail}
+  \begin{itemize}
+    \item A \textbf{forecasting} model targets the centre of tomorrow's distribution.
+      \[ \hat r_{t} = \E\!\left[r_{t}\mid \mathcal{I}_{t-1}\right] \]
+    \item A \textbf{risk} model targets a quantile of it.
+      \[ \widehat{\mathrm{VaR}}_{t}(\alpha)\ \text{such that}\quad
+         \Prob\!\left(r_{t} < -\widehat{\mathrm{VaR}}_{t}(\alpha)\mid
+         \mathcal{I}_{t-1}\right) = \alpha \]
+  \end{itemize}
+  \vspace{0.3em}
+  \begin{block}{}
+    \begin{itemize}
+      \item An excellent $R^{2}$ on the centre says nothing about the $1\%$ quantile.
+        \begin{itemize}
+          \item They are different summaries of the same conditional law.
+        \end{itemize}
+    \end{itemize}
+  \end{block}
+\end{frame}
+
+\begin{frame}{VaR asks how far; ES asks how bad beyond that}
+  \begin{itemize}
+    \item With $L_t = -r_t$ the loss and $q_{t}(\alpha) = F_{t}^{-1}(\alpha) < 0$ the
+          return quantile:
+      \[ \mathrm{VaR}_{t}(\alpha) = -q_{t}(\alpha) > 0, \qquad
+         \mathrm{ES}_{t}(\alpha) = \E\!\left[L_{t}\mid L_{t} >
+         \mathrm{VaR}_{t}(\alpha)\right] \]
+  \end{itemize}
+  \vspace{-0.3em}
+  \begin{itemize}
+    \item Convention for the whole deck: VaR and ES are \textbf{positive magnitudes}.
+      \begin{itemize}
+        \item Every figure is drawn in \textbf{return space}, where the same object is
+              the negative threshold $q_{t}(\alpha)$.
+      \end{itemize}
+  \end{itemize}
+  \begin{itemize}
+    \item VaR is a \textbf{threshold}.
+      \begin{itemize}
+        \item It says nothing about what lies past it, and it is not sub-additive.
+      \end{itemize}
+    \item ES is an \textbf{average of the tail}.
+      \begin{itemize}
+        \item It is coherent \parencite{artzner1999coherent,acerbi2002coherence}, and Basel
+              moved market-risk capital from $99\%$ VaR to $97.5\%$ ES for that
+              reason \parencite{bcbs2019frtb}.
+      \end{itemize}
+  \end{itemize}
+  \vspace{0.4em}
+  \begin{itemize}
+    \item We score VaR today.
+      \begin{itemize}
+        \item It is the one object every model family here can be asked for directly.
+      \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Point forecast, or the whole predictive distribution?}
+  \centering
+  \includegraphics[width=0.82\textwidth]{fig_02_point_vs_distribution}
+  \takeaway{A risk model must deliver a distribution, or at least one quantile of it.
+  Point accuracy is not the currency.}
+\end{frame}
+
+\begin{frame}{Two factors, and only one of them has data}
+  \[ q_{t}(\alpha) = \scale{\sigma_{t}} \times \shape{q_{\nu}(\alpha)},
+     \qquad
+     \mathrm{VaR}_{t}(\alpha) = -\,q_{t}(\alpha) > 0 \]
+  \begin{columns}[T]
+    \begin{column}{0.5\textwidth}
+      \begin{block}{The scale}
+        \begin{itemize}
+          \item One observation every day.
+          \item Volatility clusters, so it is forecastable.
+          \item A learning algorithm has data to learn from.
+        \end{itemize}
+      \end{block}
+    \end{column}
+    \begin{column}{0.5\textwidth}
+      \begin{alertblock}{The shape}
+        \begin{itemize}
+          \item At $\alpha = 1\%$: \textbf{five} events in 500 days.
+          \item The tail index rests on a handful of observations.
+          \item No architecture changes that.
+        \end{itemize}
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+  \vspace{0.7em}
+  \begin{itemize}
+    \item[\textcolor{IDAred}{$\boxdot$}] \textcolor{IDAred}{Every result today is a
+          statement about which of the two a given model got wrong.}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Why $1\%$ is a different problem}
+  \begin{itemize}
+    \item $1\%$ is the level supervision counts and the level that hurts.
+      \begin{itemize}
+        \item Two or three days a year, and they are the days that end careers.
+      \end{itemize}
+    \item It is also where every estimator is at its weakest.
+      \begin{itemize}
+        \item A 250-day historical-simulation window holds \textbf{two and a half}
+              observations below the quantile.
+        \item A 500-draw sampling model puts \textbf{five} draws below it.
+        \item A 500-day backtest expects \textbf{five} breaches.
+      \end{itemize}
+    \item So $1\%$ is not $5\%$ with a smaller number.
+      \begin{itemize}
+        \item It is the same question asked where the data runs out, and every method
+              here degrades differently as it gets there.
+      \end{itemize}
+  \end{itemize}
+\end{frame}
+
+%=============================================================================
+\begin{frame}[plain]
+  \centering\vfill
+  {\Large\textcolor{IDAred}{Act II}}\\[0.4em]
+  {\large The classical answers}
+  \vfill
+\end{frame}
+
+\begin{frame}{The simplest answer: sort the window}
+  \begin{itemize}
+    \item Historical simulation: sort the last $W$ days, read off the empirical
+          quantile.
+      \[ \widehat{\mathrm{VaR}}^{\mathrm{HS}}_{t}(\alpha)
+         = -\,\widehat{Q}_{\alpha}\!\left(r_{t-W},\dots,r_{t-1}\right) \]
+  \end{itemize}
+  \begin{itemize}
+    \item Nothing is fitted and nothing is assumed about the shape of the tail.
+      \begin{itemize}
+        \item There is no parametric distribution to mis-specify. Window length and
+              weighting remain modelling decisions.
+      \end{itemize}
+    \item Every day in the window carries weight $1/W$.
+      \begin{itemize}
+        \item Including one from four years ago, at full weight.
+      \end{itemize}
+    \item It therefore \textbf{cannot react}.
+      \begin{itemize}
+        \item The threshold moves only when an extreme day enters or leaves the window.
+      \end{itemize}
+  \end{itemize}
+  \quantlet{AIDA\_aug\_data}{\qlbase/quantlets/AIDA_aug_data}
+\end{frame}
+
+\begin{frame}{GARCH: model the scale, assume the shape}
+  \vspace{-0.2em}
+  \hfill{\scriptsize\textcolor{DarkGray}{\textcite{engle1982arch};
+  \textcite{bollerslev1986garch}}}\vspace{-0.4em}
+  \[ \sigma_{t}^{2} = \omega + \alpha_{1} r_{t-1}^{2} + \beta_{1}\sigma_{t-1}^{2},
+     \qquad
+     \widehat{\mathrm{VaR}}_{t}(\alpha) = -\left(\mu + \sigma_{t}\, q_{\nu}(\alpha)\right) \]
+  \begin{itemize}
+    \item The shock enters \textbf{squared}.
+      \begin{itemize}
+        \item A $-10\%$ day and a $+10\%$ day move $\sigma_t$ identically.
+      \end{itemize}
+    \item The tail \textbf{family is imposed}; its parameters are estimated.
+      \begin{itemize}
+        \item $q_{\nu}(\alpha)$ comes from the Student-$t$ assumption, with $\nu$ fitted.
+        \item That is the scale/shape split made explicit in one equation.
+      \end{itemize}
+    \item Half a century old, and still the benchmark machine learning must beat.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Quantile regression: learn the quantile end to end}
+  \begin{itemize}
+    \item Minimise the \textbf{pinball} (check) loss
+          \parencite{koenker1978quantiles} directly, with $q_t$ the forecast quantile:
+      \[ L_{\alpha}(r_{t}, q_{t}) = \left(\alpha - \mathbf{1}\{r_{t} < q_{t}\}\right)
+         \left(r_{t} - q_{t}\right) \]
+  \end{itemize}
+  \begin{itemize}
+    \item It is \textbf{strictly consistent} for the quantile.
+      \begin{itemize}
+        \item Minimised in expectation at the truth, which makes it the right thing to
+              rank on --- and the breach count is not \parencite{gneiting2011point}.
+      \end{itemize}
+    \item Any function class drops in: linear, boosted trees, a neural net.
+    \item The catch is where we are standing.
+      \begin{itemize}
+        \item All observations enter the objective, but near $1\%$ identification is
+              weak and the surface is locally flat.
+        \item A flexible model fits the centre while the tail drifts.
+      \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{What makes a loss the right loss?}
+  \begin{defn}[Consistency]
+    A scoring function $L$ is \textbf{consistent} for a functional $T$ if
+    $\E\left[L(Y, T(F))\right] \le \E\left[L(Y, x)\right]$ for every $F$ and every
+    report $x$. It is \textbf{strictly} consistent if equality forces $x = T(F)$.
+  \end{defn}
+  \vspace{0.3em}
+  \begin{defn}[Elicitability]
+    $T$ is \textbf{elicitable} if some strictly consistent $L$ exists for it. Then
+    $T(F) = \arg\min_{x} \E\left[L(Y, x)\right]$, and models can be ranked by average
+    loss.
+  \end{defn}
+  \vspace{0.4em}
+  \begin{itemize}
+    \item Quantiles are elicitable; the pinball loss does it \parencite{gneiting2011point}.
+    \item ES is \emph{not} elicitable on its own --- which is Act V's problem, not this
+          one.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{The pinball loss, and why $1\%$ is the hard case}
+  \centering
+  \includegraphics[width=0.93\textwidth]{s_pinball}
+  \takeaway{Left: at $\alpha = 1\%$ the two arms have slopes $0.01$ and $-0.99$, so the loss
+  punishes a threshold that is too close far harder than one too far. Right: the mean
+  loss is minimised at the sample quantile, but at $1\%$ every candidate within
+  \textbf{0.64} points of it is inside $1\%$ of the minimum --- against $0.46$ at $5\%$.
+  Identification is weakest exactly where supervision looks.}
+\end{frame}
+
+\begin{frame}{Where can AI actually help?}
+  \begin{itemize}
+    \item \scale{\textbf{The scale.}} Thousands of training examples, a well-posed
+          regression.
+      \begin{itemize}
+        \item Genuine gains. A small network on log-volatility beats EWMA.
+      \end{itemize}
+    \item \shape{\textbf{The shape.}} A handful of events.
+      \begin{itemize}
+        \item Flexibility here manufactures confidence, not information.
+      \end{itemize}
+    \item \textbf{The joint law.} What a pretrained model claims to deliver.
+      \begin{itemize}
+        \item Both factors at once, having never seen this asset. That is Act III.
+      \end{itemize}
+  \end{itemize}
+  \vspace{0.7em}
+  \begin{block}{}
+    \begin{itemize}
+      \item A flexible model does not create tail observations.
+        \begin{itemize}
+          \item It redistributes the ones you have.
+        \end{itemize}
+    \end{itemize}
+  \end{block}
+\end{frame}
+
+%=============================================================================
+\begin{frame}[plain]
+  \centering\vfill
+  {\Large\textcolor{IDAred}{Act III}}\\[0.4em]
+  {\large Time-series foundation models}
+  \vfill
+\end{frame}
+
+\begin{frame}{Four words people use interchangeably}
+  \begin{itemize}
+    \item \textbf{Supervised forecasting} --- fit on \emph{this} series, predict it.
+    \item \textbf{Pretraining} --- fit once, on a large corpus of \emph{other} series.
+    \item \textbf{Fine-tuning} --- take a pretrained model, continue training on yours.
+    \item \textbf{Zero-shot} --- take a pretrained model, run it, change nothing.
+  \end{itemize}
+  \vspace{0.8em}
+  \begin{block}{Everything in this Act is zero-shot}
+    \begin{itemize}
+      \item No parameter has seen the S\&P 500 in a way you control.
+      \item What it saw in pretraining, you cannot inspect. That asymmetry returns in
+            Act V as a validation problem, not a curiosity.
+    \end{itemize}
+  \end{block}
+\end{frame}
+
+\begin{frame}{Point forecast, marginal quantiles, or a predictive law?}
+  \begin{itemize}
+    \item Three different outputs, routinely reported as if interchangeable:
+  \end{itemize}
+  \begin{enumerate}
+    \item a \textbf{point} forecast $\hat r_{t}$;
+    \item a set of \textbf{marginal quantiles} at fixed levels;
+    \item a full \textbf{predictive distribution} you can integrate.
+  \end{enumerate}
+  \vspace{0.6em}
+  \begin{itemize}
+    \item VaR needs (2) \emph{at your level}, or (3).
+    \item ES needs (3), or enough of (2) to approximate the tail mean.
+    \item A model that gives you (2) on \textbf{its} grid has not given you (2) on yours.
+      \begin{itemize}
+        \item Which sounds pedantic until the next slide.
+      \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Chronos: the series as a language}
+  \begin{itemize}
+    \item Values are scaled and quantised into a fixed vocabulary of tokens.
+    \item A sequence model is pretrained on a large corpus of time series.
+    \item Forecasting is next-token prediction, decoded back to the value scale.
+  \end{itemize}
+  \vspace{0.5em}
+  \begin{block}{Two heads, and the difference is the whole Act}
+    \begin{itemize}
+      \item \textbf{Chronos-T5} samples paths, so any quantile can be read off.
+      \item \textbf{Chronos-Bolt} outputs a \emph{fixed grid} of quantiles, far faster.
+    \end{itemize}
+  \end{block}
+  \vspace{0.2em}
+  \centering\footnotesize \textcite{ansari2024chronos}. TimesFM
+  \parencite{das2024timesfm} is the same idea with a different decoder.
+  \quantlet{AIDA\_aug\_chronos}{\qlbase/quantlets/AIDA_aug_chronos}
+\end{frame}
+
+\begin{frame}{Why the input is prices}
+  \begin{columns}[T]
+    \begin{column}{0.54\textwidth}
+      \begin{itemize}
+        \item In the tested pipeline, price \textbf{levels} are the compatible input
+              representation.
+          \begin{itemize}
+            \item Give it the last 512 closes, ask for the next.
+          \end{itemize}
+        \item Recover the implied return:
+          \[ r = 100\log\!\left(\hat P_{t} / P_{t-1}\right) \]
+        \item A monotone transform.
+          \begin{itemize}
+            \item So a price quantile maps to the return quantile of the same level.
+          \end{itemize}
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.46\textwidth}
+      \begin{alertblock}{What happens if you feed returns}
+        \begin{itemize}
+          \item Returns are near-zero-mean noise.
+            \begin{itemize}
+              \item Predictive standard deviation \textbf{0.14} against a realised
+                    \textbf{1.22}, and the VaR collapses with it.
+            \end{itemize}
+        \end{itemize}
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+  \vspace{0.4em}
+  \centering\textcolor{DarkGray}{Measured in the certified pipeline, S\&P 500,
+  5541 out-of-sample days.}
+\end{frame}
+
+\begin{frame}{You ask for the $1\%$ quantile. You get the $10\%$.}
+  \centering
+  \includegraphics[width=0.93\textwidth]{s_clamp}
+  \takeaway{Chronos-Bolt was trained on the grid $0.1, 0.2, \dots, 0.9$. Requests below $0.1$
+  are clamped to the lowest trained level --- on \textbf{100\% of 500 days} the $1\%$,
+  $5\%$ and $10\%$ outputs are bit-identical.}
+  \quantlet{AIDA\_aug\_chronos}{\qlbase/quantlets/AIDA_aug_chronos}
+\end{frame}
+
+\begin{frame}{Why this is the important slide}
+  \begin{itemize}
+    \item A pipeline that requested \texttt{quantile\_levels=[0.01]} and took the number
+          would have produced:
+  \end{itemize}
+  \begin{itemize}
+    \item a complete set of results, a leaderboard position, and a plot;
+    \item no exception, no failed assertion, no missing value;
+    \item a breach rate around $10\%$ --- \textbf{ten times} what it claims.
+  \end{itemize}
+  \vspace{0.5em}
+    \begin{alertblock}{And the natural reading would have been wrong}
+    \begin{itemize}
+      \item ``The foundation model is badly calibrated in the tail'' is a statement
+            about the \emph{pipeline}, dressed as a finding about the model.
+      \item Ask what the artefact \emph{can} answer, not only what you want.
+      \item Then check the values, because the call succeeded.
+    \end{itemize}
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{The sampling head has a floor of its own}
+  \begin{itemize}
+    \item Chronos-T5 draws $N$ price paths and reads the quantile off the sample.
+  \end{itemize}
+  \begin{itemize}
+    \item At $\alpha = 1\%$ with $N = 500$: \textbf{five} draws fall below the quantile.
+      \begin{itemize}
+        \item The forecast is an order statistic of five points.
+      \end{itemize}
+    \item The library default is $N = 20$.
+      \begin{itemize}
+        \item Which cannot express a $1\%$ quantile at all: no draw lies below it.
+      \end{itemize}
+    \item So the sample count is a modelling choice.
+      \begin{itemize}
+        \item With the same standing as the window length in historical simulation,
+              and reported about as often as never.
+      \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{The same model gives two answers}
+  \centering
+  \includegraphics[width=0.95\textwidth]{s_floor}
+  \takeaway{Right: Chronos-T5 run twice on identical inputs, at 500 and 2000 paths. At
+  $\alpha = 1\%$ the two runs give the \textbf{same} VaR on $71\%$ of the 500 days and
+  differ by about \textbf{0.63} points on $28\%$ --- one step of the token grid. The
+  forecast does not drift with the draw count; it jumps.}
+  \quantlet{AIDA\_aug\_chronos}{\qlbase/quantlets/AIDA_aug_chronos}
+\end{frame}
+
+%=============================================================================
+\begin{frame}[plain]
+  \centering\vfill
+  {\Large\textcolor{IDAred}{Act IV}}\\[0.4em]
+  {\large Language models as risk forecasters}
+  \vfill
+\end{frame}
+
+\begin{frame}{Four different things people mean by ``LLMs for risk''}
+  \begin{enumerate}
+    \item \textbf{Feature extraction} --- sentiment from text, fed to a conventional
+          model.
+      \begin{itemize}
+        \item The AI stops at a feature. The risk number is still econometrics.
+      \end{itemize}
+    \item \textbf{Event classification} --- label the news flow.
+    \item \textbf{Probability elicitation} --- ask for $\Prob(\text{tail event})$.
+    \item \textbf{Quantile elicitation} --- ask for the VaR itself.
+  \end{enumerate}
+  \vspace{0.7em}
+  \begin{block}{}
+    \begin{itemize}
+      \item Only (3) and (4) put the language model \emph{inside} the risk number.
+        \begin{itemize}
+          \item That is what we test, following \textcite{pele2026llmvar}.
+        \end{itemize}
+    \end{itemize}
+  \end{block}
+\end{frame}
+
+\begin{frame}{Two ways to get a quantile out of a language model}
+  \begin{block}{Sampling --- the published method}
+    \[ \text{serialise} \;\rightarrow\; \text{sample } N \text{ completions}
+       \;\rightarrow\; \widehat{Q}_{\alpha}\!\left(\text{draws}\right) \]
+    \vspace{-0.7em}
+    \begin{itemize}
+      \item Statistically analogous to Chronos-T5 at the sampling-and-quantile stage:
+            the quantile is an order statistic of the draws, and $N$ sets the floor.
+    \end{itemize}
+  \end{block}
+  \begin{block}{Elicitation --- what we also run here}
+    \[ \text{serialise} \;\rightarrow\; \text{ask for } q_{\alpha}
+       \;\rightarrow\; \text{parse the reply} \]
+    \vspace{-0.7em}
+    \begin{itemize}
+      \item One call instead of $N$, and it can be wrong in ways sampling cannot be:
+            a positive quantile, an inverted pair.
+    \end{itemize}
+  \end{block}
+  \centering\scriptsize\textcolor{DarkGray}{Sampling follows
+  \textcite{pele2026llmvar} and LLMTime \parencite{gruver2023llmtime}; the serialisation
+  is theirs (\texttt{base 10, prec 2, signed, ", " separator}).}
+  \quantlet{AIDA\_aug\_llm}{\qlbase/quantlets/AIDA_aug_llm}
+\end{frame}
+
+\begin{frame}{The prompt is a modelling decision}
+  \begin{itemize}
+    \item Four information sets, and the differences between them are the experiment:
+  \end{itemize}
+  \begin{itemize}
+    \item \texttt{series} --- the last 60 returns, \textbf{anonymised}.
+      \begin{itemize}
+        \item No ticker, no dates, no price levels.
+      \end{itemize}
+    \item \texttt{series+state} --- the same, plus volatility, drawdown, the HS VaR.
+    \item \texttt{dated} --- the same returns, plus the asset name and the date.
+    \item \texttt{dated+news} --- the same, plus the real headlines available at $t-1$.
+  \end{itemize}
+  \vspace{0.5em}
+  \begin{alertblock}{Why two of them hide the date}
+    \begin{itemize}
+      \item The model's pretraining covers these dates.
+        \begin{itemize}
+          \item ``S\&P 500, 5 August 2024'' invites recall, and recall is not available
+                for tomorrow.
+        \end{itemize}
+    \end{itemize}
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{One rule decides whether the headlines mean anything}
+  \begin{block}{The as-of rule}
+    \begin{itemize}
+      \item A headline may enter the prompt for date $t$ only if it was published at or
+            before the \textbf{as-of cutoff} on $t-1$.
+        \begin{itemize}
+          \item That cutoff is the asset's own market close.
+        \end{itemize}
+    \end{itemize}
+  \end{block}
+  \vspace{0.4em}
+  \begin{itemize}
+    \item The cutoff is measured per exchange, not assumed.
+      \begin{itemize}
+        \item S\&P $20{:}00$, DAX $15{:}30$, Nikkei $06{:}00$, gold $17{:}30$,
+              Bitcoin $24{:}00$ UTC.
+        \item New York's close applied to the Nikkei would hand it fourteen hours of
+              news published after Tokyo shut.
+      \end{itemize}
+    \item Consecutive cutoffs \textbf{tile} the calendar.
+      \begin{itemize}
+        \item No article falls in two windows and none falls in none. A fixed 24-hour
+              window silently drops every evening and every weekend.
+      \end{itemize}
+  \end{itemize}
+  \quantlet{AIDA\_aug\_news}{\qlbase/quantlets/AIDA_aug_news}
+\end{frame}
+
+\begin{frame}{What the feed gave us}
+  \begin{columns}[T]
+    \begin{column}{0.53\textwidth}
+      \begin{block}{EODHD, S\&P 500 index feed}
+        \begin{itemize}
+          \item 35\,293 articles fetched
+          \item 2\,128 survive the as-of rule
+          \item 447 of 500 dates covered (89\%)
+          \item 4.8 headlines per covered date
+          \item \textbf{0} published after their cutoff
+        \end{itemize}
+      \end{block}
+    \end{column}
+    \begin{column}{0.47\textwidth}
+      \begin{alertblock}{The first symbol was wrong}
+        \begin{itemize}
+          \item \texttt{SPY.US} returned 222 articles for two years.
+          \item It left \textbf{67\%} of dates empty.
+          \item The feed was chosen on measured coverage, not plausibility.
+        \end{itemize}
+      \end{alertblock}
+    \end{column}
+  \end{columns}
+  \vspace{0.5em}
+  \begin{itemize}
+    \item Median publication lead before the cutoff: \textbf{1.1 hours}.
+      \begin{itemize}
+        \item The text is genuinely fresh, and genuinely prior.
+      \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Why the control is \texttt{dated}}
+  \begin{itemize}
+    \item Real headlines \emph{reveal the period}.
+      \begin{itemize}
+        \item They name companies, events and numbers that place the text in time.
+      \end{itemize}
+  \end{itemize}
+  \vspace{0.3em}
+  \centering
+  \begin{tabular}{lccl}
+    \toprule
+    Configuration & period revealed & headlines & role \\
+    \midrule
+    \texttt{series}       & no  & no  & anonymised baseline \\
+    \texttt{dated}        & yes & no  & \textbf{control} \\
+    \texttt{dated+news}   & yes & yes & \textbf{treatment} \\
+    \bottomrule
+  \end{tabular}
+  \vspace{0.7em}
+  \begin{block}{}
+    \begin{itemize}
+      \item Comparing \texttt{series} with a news configuration would confound ``the
+            text carries information'' with ``the model now knows which period this
+            is''.
+        \begin{itemize}
+          \item Only the last two rows identify the first effect.
+        \end{itemize}
+    \end{itemize}
+  \end{block}
+\end{frame}
+
+\begin{frame}{What can go wrong, in increasing order of danger}
+  \begin{itemize}
+    \item \textbf{Unparseable output.} The model wrote prose. Loud, and cheap to fix.
+    \item \textbf{Well-formed nonsense.} A positive $1\%$ quantile.
+      \begin{itemize}
+        \item It asserts the worst $1\%$ of days is a gain, and it parses.
+      \end{itemize}
+    \item \textbf{Inverted tails.} $q_{0.01}$ above $q_{0.05}$.
+      \begin{itemize}
+        \item Both numbers well formed, the distribution impossible.
+      \end{itemize}
+    \item \textbf{Prompt sensitivity.} The same information, reworded, moves the number.
+    \item \textbf{Temporal contamination.} The answer was in the training corpus.
+    \item \textbf{Version drift.} The endpoint updates; yesterday is irreproducible.
+  \end{itemize}
+  \vspace{0.3em}
+  \begin{itemize}
+    \item[\textcolor{IDAred}{$\boxdot$}] \textcolor{IDAred}{Only the first announces
+          itself.}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{What we asked for, and what came back}
+  \begin{columns}[T]
+    \begin{column}{0.5\textwidth}
+      One JSON object per day, \textbf{both levels in one reply}:
+      \begin{itemize}
+        \item \texttt{q01}, \texttt{q05} --- the two quantiles
+        \item \texttt{prob\_negative}, \texttt{prob\_tail}
+        \item \texttt{risk\_score}, \texttt{confidence}
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.5\textwidth}
+      \begin{block}{500 days $\times$ 4 configurations}
+        \begin{itemize}
+          \item parsed: 2000 of 2000
+          \item non-negative quantile: \textbf{0}
+          \item inverted tails: \textbf{0}
+        \end{itemize}
+      \end{block}
+    \end{column}
+  \end{columns}
+  \vspace{0.6em}
+  \begin{itemize}
+    \item Asking for both levels at once costs a handful of output tokens.
+      \begin{itemize}
+        \item Asking twice costs a second 500-request batch, and the two levels then
+              come from two sessions of the model rather than one reply.
+      \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{The LLM states a threshold, and it moves}
+  \centering
+  \includegraphics[width=0.94\textwidth]{s_llm}
+  \takeaway{Correlation with GARCH-$t$ is \textbf{0.50} for the anonymised configuration, and
+  far lower with historical simulation. This is consistent with the language model
+  primarily tracking \scale{volatility} --- the factor that has data.}
+  \quantlet{AIDA\_aug\_llm}{\qlbase/quantlets/AIDA_aug_llm}
+\end{frame}
+
+\begin{frame}{The published study, on the S\&P 500}
+  \centering
+  \includegraphics[height=0.66\textheight]{eswa_var_sp500}
+  \takeaway{\textcite{pele2026llmvar}, GPT-4, sampling with a 120-day context. Black is the
+  VaR path, green and orange the returns above it, red the breaches. One of nine asset
+  panels in the paper: same prompt, same parser, nine markets --- the design this course
+  reruns on open weights.}
+\end{frame}
+
+\begin{frame}{What the sampled distribution looks like next to the truth}
+  \centering
+  \includegraphics[height=0.64\textheight]{eswa_dist_sp500}
+  \takeaway{Blue: realised log returns. Red: the language model's draws, pooled over the test
+  span. The draws are more concentrated at the centre than the returns are, and the
+  difference sits in the shoulders rather than the far tail --- the same finding as the
+  threshold plot, read off the density instead of the path.
+  \textcite{pele2026llmvar}, GPT-4, context 120.}
+\end{frame}
+
+\begin{frame}{A model you can run on your own laptop}
+  \begin{itemize}
+    \item A laboratory whose central exercise needs a credit card is a demonstration.
+      \begin{itemize}
+        \item So the same prompt goes through \textbf{open weights}, downloaded from
+              Hugging Face exactly the way Chronos is.
+      \end{itemize}
+    \item \texttt{Qwen2.5-1.5B-Instruct} \parencite{qwen2024report} --- about 3 GB and
+          seconds per forecast, which is what a laptop can run.
+      \begin{itemize}
+        \item This is the leg you run yourself this afternoon.
+      \end{itemize}
+    \item The package also ships $3$B, $7$B and $14$B, run over the same 500 days.
+      \begin{itemize}
+        \item They answer one question: \textbf{does a larger model give a more
+              informative VaR?} The next frame is the answer.
+      \end{itemize}
+    \item The prompt, the schema and the parser are \textbf{imported} from the
+          commercial stage.
+      \begin{itemize}
+        \item So the legs differ in exactly one thing: which model reads the prompt.
+      \end{itemize}
+  \end{itemize}
+  \quantlet{AIDA\_aug\_local\_llm}{\qlbase/quantlets/AIDA_aug_local_llm}
+\end{frame}
+
+\begin{frame}{The bigger the model, the less it says}
+  \centering
+  \includegraphics[width=0.87\textwidth]{s_open}
+  \takeaway{The commercial model emits a distinct value on $10.8\%$ of the 500 days; the
+  open models, on $9.5\%$ ($1.5$B), $7.6\%$ ($3$B), $6.8\%$ ($7$B) and $4.6\%$ ($14$B).
+  Every output is well formed, correctly signed and correctly ordered, and the
+  \scale{$14$B model moves its VaR on one day in twenty-two}.}
+  \quantlet{AIDA\_aug\_local\_llm}{\qlbase/quantlets/AIDA_aug_local_llm}
+\end{frame}
+
+\begin{frame}{The check nobody runs: count the distinct outputs}
+  \begin{itemize}
+    \item Every validity test in the pipeline passes on every model in this section.
+      \begin{itemize}
+        \item The reply parses, the sign is right and the two quantiles are in
+              order.
+      \end{itemize}
+    \item And the forecast moves on fewer than one day in ten.
+      \begin{itemize}
+        \item Which no schema, no type check and no assertion can see.
+      \end{itemize}
+    \item Only \textbf{counting distinct outputs} sees it.
+      \begin{itemize}
+        \item One line of code, and it is in nobody's validation checklist.
+      \end{itemize}
+  \end{itemize}
+  \vspace{0.6em}
+    \begin{alertblock}{}
+    \begin{itemize}
+      \item ``Well formed'' and ``informative'' are different properties.
+        \begin{itemize}
+          \item The tooling only measures the first.
+        \end{itemize}
+    \end{itemize}
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{The same weights, asked two different ways}
+  \centering
+  \includegraphics[width=0.88\textwidth]{s_sampling}
+  \takeaway{One model, two extractions: \texttt{Qwen2.5-1.5B} asked for the number, against
+  the same weights sampled \textbf{1000} times over the same 500 days, same parser, same
+  scoring. Sampling wins on loss on \textbf{all five} assets and emits $15.8\%$ distinct
+  values against $9.5\%$ on the S\&P. Kupiec rejects \textbf{all ten} runs: breach rates
+  of $4.8\%$ to $13.2\%$ against a nominal $1\%$.}
+  \quantlet{AIDA\_aug\_local\_llm}{\qlbase/quantlets/AIDA_aug_local_llm}
+\end{frame}
+
+\begin{frame}{How far that comparison goes}
+  \begin{itemize}
+    \item It is the only \textbf{fully controlled} experiment in the package.
+      \begin{itemize}
+        \item The weights, the days and the parser are held fixed, so the only
+              difference left is how the number was extracted.
+      \end{itemize}
+    \item Sampling is the better extraction, and it is not close.
+      \begin{itemize}
+        \item Lower loss on every asset, and roughly twice the distinct values.
+      \end{itemize}
+    \item Neither is a valid $1\%$ forecast at this model size.
+      \begin{itemize}
+        \item Five breaches were expected. The best of these runs delivered 24.
+      \end{itemize}
+    \item This is a statement about a $1.5$B open model.
+      \begin{itemize}
+        \item \textcite{pele2026llmvar} ran the sampling method on GPT-3.5 and GPT-4.
+              Nothing here tests those.
+      \end{itemize}
+  \end{itemize}
+\end{frame}
+
+%=============================================================================
+\begin{frame}[plain]
+  \centering\vfill
+  {\Large\textcolor{IDAred}{Act V}}\\[0.4em]
+  {\large Validation}
+  \vfill
+\end{frame}
+
+\begin{frame}{Backtesting in one line}
+  \begin{itemize}
+    \item Count the days the threshold was crossed:
+      \[ \hat\alpha = \frac{1}{T}\sum_{t=1}^{T}
+         \mathbf{1}\!\left\{r_{t} < -\widehat{\mathrm{VaR}}_{t}(\alpha)\right\} \]
+  \end{itemize}
+  \begin{itemize}
+    \item \textbf{Kupiec} tests whether $\hat\alpha$ differs from $\alpha$
+          \parencite{kupiec1995}.
+      \begin{itemize}
+        \item $LR_{UC}\sim\chi^{2}_{1}$ under the null.
+      \end{itemize}
+    \item \textbf{Christoffersen} \parencite{christoffersen1998} tests whether the
+          breaches \emph{cluster}.
+      \begin{itemize}
+        \item Right count, wrong timing is still a failure: breaches that arrive in one
+              fortnight are the fortnight that matters.
+      \end{itemize}
+    \item Their sum is conditional coverage, $\chi^{2}_{2}$.
+  \end{itemize}
+  \quantlet{AIDA\_aug\_backtest}{\qlbase/quantlets/AIDA_aug_backtest}
+\end{frame}
+
+\begin{frame}{Kupiec and Christoffersen in full}
+  \begin{itemize}
+    \item With $T$ days, $x$ breaches and $n_{ij}$ transitions between breach and
+          no-breach:
+  \end{itemize}
+  \begin{defn}[Unconditional coverage]
+    \vspace{-0.6em}
+    \[ LR_{UC} = -2\log\frac{(1-\alpha)^{T-x}\,\alpha^{x}}
+       {\left(1-\tfrac{x}{T}\right)^{T-x}\left(\tfrac{x}{T}\right)^{x}}
+       \ \sim\ \chi^{2}_{1} \]
+    \vspace{-0.4em}
+    \hfill{\scriptsize\parencite{kupiec1995}}
+  \end{defn}
+  \begin{defn}[Independence]
+    \vspace{-0.6em}
+    \[ LR_{IND} = -2\log\frac{(1-\hat\pi)^{n_{00}+n_{10}}\hat\pi^{\,n_{01}+n_{11}}}
+       {(1-\hat\pi_{01})^{n_{00}}\hat\pi_{01}^{\,n_{01}}
+        (1-\hat\pi_{11})^{n_{10}}\hat\pi_{11}^{\,n_{11}}}
+       \ \sim\ \chi^{2}_{1} \]
+    \vspace{-0.4em}
+    \hfill{\scriptsize\parencite{christoffersen1998}}
+  \end{defn}
+  \vspace{0.2em}
+  \begin{itemize}
+    \item $\hat\pi_{i1} = n_{i1}/(n_{i0}+n_{i1})$ is the breach probability after state
+          $i$; $\hat\pi$ pools them.
+      \begin{itemize}
+        \item Conditional coverage is the sum of the two, $\chi^{2}_{2}$.
+      \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{How wrong a model must be before 500 days can see it}
+  \centering
+  \includegraphics[width=0.48\textwidth]{s_power}
+  \vspace{-0.2em}
+  \takeaway{Two-sided Kupiec LR$_{UC}$ at the $5\%$ level, exact binomial power. At
+  $\alpha = 1\%$ over 500 days the smallest true breach rate rejected with $80\%$ power
+  is \textbf{2.50\%}; over 5541 days, $1.45\%$. The dashed line is the weaker criterion
+  usually quoted --- the rate whose \emph{expected} count alone enters the rejection
+  region, $2.00\%$ here --- and it is optimistic by half a percentage point.}
+  \quantlet{AIDA\_aug\_backtest}{\qlbase/quantlets/AIDA_aug_backtest}
+\end{frame}
+
+\begin{frame}{The same question, four answers}
+  \centering
+  \includegraphics[width=0.71\textwidth]{s_thresholds}
+  \vspace{-0.2em}
+  \takeaway{S\&P 500, 500 out-of-sample days. Same forecast dates, same target, same scoring
+  rule. The information \emph{representation} differs by construction: history length and
+  input form are not the same across HS, GARCH, Chronos and the LLM.}
+\end{frame}
+
+\begin{frame}{Coverage and ranking, side by side}
+  \centering
+  \includegraphics[width=0.96\textwidth]{s_backtest}
+  \takeaway{Expected 5 breaches. Historical simulation delivers 2, GARCH-$t$ 7, and the
+  open-weights model \textbf{35}.}
+  \quantlet{AIDA\_aug\_backtest}{\qlbase/quantlets/AIDA_aug_backtest}
+\end{frame}
+
+\begin{frame}{What the backtest says}
+  \centering
+  \scriptsize
+  \input{../tables/backtest_SPX}
+  \vspace{0.5em}
+  \begin{block}{}
+    \begin{itemize}
+      \item Expected breaches: 5. Ten forecasts, one protocol.
+        \begin{itemize}
+          \item Generated by \texttt{src/10\_slide\_tables.py}; source
+                \texttt{precomputed/lab\_backtest\_SPX.csv}.
+        \end{itemize}
+    \end{itemize}
+  \end{block}
+\end{frame}
+
+\begin{frame}{Eight of ten pass, and that says more about the test}
+  \begin{itemize}
+    \item Breach counts of 2, 3, 6 and 7 all pass Kupiec at $1\%$ on 500 days.
+      \begin{itemize}
+        \item Five expected events cannot separate them. The test is not endorsing
+              eight models; it is declining to speak.
+      \end{itemize}
+    \item The two rejections miss by factors of five and seven.
+      \begin{itemize}
+        \item $5.00\%$ and $7.09\%$ against a nominal $1\%$. It takes that much to be
+              seen.
+      \end{itemize}
+    \item So ``passed the backtest'' at this sample size means very little.
+      \begin{itemize}
+        \item And it is exactly the sentence that appears in model documentation.
+      \end{itemize}
+  \end{itemize}
+  \vspace{0.4em}
+  \begin{itemize}
+    \item[\textcolor{IDAred}{$\boxdot$}] \textcolor{IDAred}{Report the power alongside
+          the verdict, or the verdict is decoration.}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Does the S\&P result replicate?}
+  \centering
+  \scriptsize
+  \input{../tables/backtest_all_assets}
+  \vspace{0.4em}
+  \takeaway{Breaches over 500 days, with the realised rate in brackets; red is a Kupiec
+  rejection at $5\%$. \textbf{18 of the 50} model-asset cells are rejected. Both
+  \texttt{Qwen2.5-1.5B} rows are rejected on all five markets, and Chronos-T5 passes on
+  the S\&P and is rejected on the other four. ``Asked'' means the model states the
+  quantile in words; ``sampled'' means it is read off 1000 draws.}
+  \quantlet{AIDA\_aug\_backtest}{\qlbase/quantlets/AIDA_aug_backtest}
+\end{frame}
+
+\begin{frame}{Reading that table without fooling yourself}
+  \begin{itemize}
+    \item Fifty tests at the $5\%$ level.
+      \begin{itemize}
+        \item Under a true null throughout, about \textbf{2 or 3} rejections are
+              expected by chance alone. There are 18.
+      \end{itemize}
+    \item The rejections are not scattered. They are concentrated.
+      \begin{itemize}
+        \item Ten of them are the two open-weights rows, and four more are Chronos-T5.
+      \end{itemize}
+    \item Chronos-T5 is the finding the single-asset table hid.
+      \begin{itemize}
+        \item $1.2\%$ on the S\&P, then $2.2\%$, $2.4\%$, $3.2\%$ and $2.6\%$ elsewhere.
+              One market's pass is not evidence.
+      \end{itemize}
+    \item Historical simulation fails in the other direction.
+      \begin{itemize}
+        \item Zero breaches on the DAX and on Bitcoin: too conservative to be rejected
+              for being right.
+      \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Comparing two models on the same days}
+  \begin{defn}[Diebold--Mariano]
+    With $d_{t} = L_{\alpha}(r_{t}, q^{A}_{t}) - L_{\alpha}(r_{t}, q^{B}_{t})$,
+    \vspace{-0.4em}
+    \[ DM = \frac{\bar d}{\sqrt{\hat\Omega / T}} \ \xrightarrow{d}\ \mathcal{N}(0,1),
+       \qquad H_{0}:\ \E[d_{t}] = 0 \]
+    \vspace{-0.4em}
+    \hfill{\scriptsize\parencite{diebold1995comparing}}
+  \end{defn}
+  \begin{itemize}
+    \item $\hat\Omega$ is a \textbf{HAC} estimate \parencite{newey1987hac}.
+      \begin{itemize}
+        \item Loss differentials are serially dependent; the naive variance overstates
+              significance.
+      \end{itemize}
+    \item The test is paired, so both models must be scored on the \emph{same} days.
+      \begin{itemize}
+        \item A model that skips days is not comparable until the sample is aligned.
+      \end{itemize}
+    \item Report $\bar d$ and its interval, not only the verdict.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Real news, at the level where it bites}
+  \centering
+  \includegraphics[width=0.94\textwidth]{s_news}
+  \takeaway{On the 447 scored days carrying at least one headline, the mean pinball loss falls
+  by \textbf{0.00185} per day with news, Diebold--Mariano $p = \mathbf{0.009}$. At
+  $\alpha = 5\%$ the same comparison gave $p = 0.61$.}
+  \quantlet{AIDA\_aug\_news}{\qlbase/quantlets/AIDA_aug_news}
+\end{frame}
+
+\begin{frame}{Does it hold on the other four markets?}
+  \centering
+  \includegraphics[width=0.83\textwidth]{s_news_assets}
+  \takeaway{Significant on the S\&P ($p = 0.009$) and the Nikkei ($p = 0.001$); not on the
+  DAX, gold or Bitcoin.}
+  \quantlet{AIDA\_aug\_news}{\qlbase/quantlets/AIDA_aug_news}
+\end{frame}
+
+\begin{frame}{How far that result goes}
+  \begin{itemize}
+    \item It is \textbf{not} ``news improves risk forecasts''.
+      \begin{itemize}
+        \item It is: these headlines, at this horizon, at the $1\%$ quantile, on two of
+              five markets.
+      \end{itemize}
+    \item \textbf{Five tests were run.} Bonferroni puts the threshold at $0.01$.
+      \begin{itemize}
+        \item The Nikkei survives it at $0.001$; the S\&P sits on the line at $0.009$.
+      \end{itemize}
+    \item \textbf{Contamination is not excluded.}
+      \begin{itemize}
+        \item The prompt hides the date, but the regime is in the corpus regardless.
+      \end{itemize}
+    \item \textbf{One model, one prompt, one calm period.}
+      \begin{itemize}
+        \item 2023--2024 contains no 2008 and no March 2020.
+      \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Scoring ES means scoring the pair}
+  \begin{defn}[FZ$_{0}$ loss]
+    For a quantile $v < 0$ and a shortfall $e < 0$ at level $\alpha$,
+    \vspace{-0.4em}
+    \[ L_{\mathrm{FZ}_{0}}(r, v, e) =
+       -\frac{1}{\alpha e}\mathbf{1}\{r \le v\}(v - r)
+       + \frac{v}{e} + \log(-e) - 1 \]
+    \vspace{-0.4em}
+    \hfill{\scriptsize\parencite{fissler2016elicitability,patton2019dynamic}}
+  \end{defn}
+  \begin{itemize}
+    \item ES is not elicitable on its own.
+      \begin{itemize}
+        \item No scoring function is minimised by the true ES alone, so ES cannot be
+              ranked the way a quantile can.
+      \end{itemize}
+    \item The \emph{pair} $(\mathrm{VaR}, \mathrm{ES})$ is jointly elicitable.
+      \begin{itemize}
+        \item Which is why regulation can still be backtested
+              \parencite{nolde2017elicitability}.
+      \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{The minimum sits at the truth in both coordinates}
+  \centering
+  \includegraphics[width=0.65\textwidth]{s_fz}
+  \takeaway{S\&P 500 test span. The minimiser of the FZ$_{0}$ loss lands on the sample pair in
+  both coordinates, $(-3.45, -5.01)$. The valley is far shallower along ES than along
+  VaR: the tail mean is estimated from the five days below the threshold, and the loss
+  surface knows it.}
+\end{frame}
+
+\begin{frame}{Leakage: the failure that flatters every model}
+  \begin{itemize}
+    \item \textbf{Window leakage} --- the forecast day inside its own estimation window.
+    \item \textbf{Alignment leakage} --- a return series shifted one row against dates.
+      \begin{itemize}
+        \item Silent, and it inflates every skill measure at once.
+      \end{itemize}
+    \item \textbf{Selection leakage} --- choosing the architecture on the reported period.
+    \item \textbf{Temporal contamination} --- the pretraining corpus contains the outcome.
+      \begin{itemize}
+        \item The first three you can test for. The fourth you cannot, because you
+              cannot read the corpus.
+      \end{itemize}
+  \end{itemize}
+  \vspace{0.4em}
+  \begin{block}{}
+    \begin{itemize}
+      \item Anonymising the prompt is therefore a design choice.
+        \begin{itemize}
+          \item And the news alignment is audited rather than trusted.
+        \end{itemize}
+    \end{itemize}
+  \end{block}
+\end{frame}
+
+\begin{frame}{How much of the disagreement is real?}
+  \centering
+  \includegraphics[width=0.92\textwidth]{s_disagreement}
+  \takeaway{Left: the band between the most and least conservative of the nine, day by day;
+  median spread $2.59$pp. A wide band is not evidence of independence, so the right panel
+  measures it: median pairwise $\rho = \mathbf{0.47}$, and
+  $\lambda_{1}(R)/N = \mathbf{0.53}$ against $0.11$ under independence. The four LLM
+  configurations form a block of their own at $\rho = \mathbf{0.75}$.}
+  \quantlet{AIDA\_aug\_backtest}{\qlbase/quantlets/AIDA_aug_backtest}
+\end{frame}
+
+\begin{frame}{SYNCRISK: when every desk runs the same model}
+  \[ D_{t} = \max_{i}\widehat{\mathrm{VaR}}_{i,t} - \min_{i}\widehat{\mathrm{VaR}}_{i,t},
+     \qquad
+     \rho_{ij} = \mathrm{corr}\!\left(\widehat{\mathrm{VaR}}_{i},
+     \widehat{\mathrm{VaR}}_{j}\right) \]
+  \begin{itemize}
+    \item If every desk runs a similar model, every desk de-risks the same morning.
+    \item Shared \textbf{pretraining} is a new channel for that.
+      \begin{itemize}
+        \item The same weights behind many vendors, and no way to tell from outside.
+      \end{itemize}
+    \item Four prompts are not four opinions: their median $\rho$ is $0.75$.
+      \begin{itemize}
+        \item Historical simulation is the least correlated with the rest, at $0.21$.
+      \end{itemize}
+    \item Measuring $\rho_{ij}$ across your own model set is a supervisory question.
+      \begin{itemize}
+        \item You compute both quantities this afternoon.
+      \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{What AI adds to the work of checking}
+  \begin{itemize}
+    \item \textbf{You cannot inspect the training data.}
+      \begin{itemize}
+        \item Contamination is invisible in principle, not merely in practice.
+      \end{itemize}
+    \item \textbf{The artefact has properties you did not choose.}
+      \begin{itemize}
+        \item A quantile grid, a context length, a tokenisation, a sample count.
+      \end{itemize}
+    \item \textbf{The endpoint can change under you.}
+      \begin{itemize}
+        \item Reproducibility needs a pinned version and a stored prompt --- or open
+              weights, which is the other reason they are in this package.
+      \end{itemize}
+    \item \textbf{Plausible output is the default.} It will always answer.
+  \end{itemize}
+  \vspace{0.4em}
+  \begin{alertblock}{}
+    \begin{itemize}
+      \item None of this argues against using these models.
+        \begin{itemize}
+          \item It argues for validating them harder than the ones you fitted yourself.
+        \end{itemize}
+    \end{itemize}
+  \end{alertblock}
+\end{frame}
+
+%=============================================================================
+\begin{frame}[plain]
+  \centering\vfill
+  {\Large\textcolor{IDAred}{The laboratory}}\\[0.4em]
+  {\large Two hours in one notebook, and it runs without a key}
+  \vfill
+\end{frame}
+
+\begin{frame}{What you will do this afternoon}
+  \begin{itemize}
+    \item \textbf{Run selected forecasts yourself; validate the complete precomputed
+          panel.}
+  \end{itemize}
+  \begin{enumerate}
+    \item \textbf{Live, in full:} historical simulation you write, and the whole
+          Chronos-Bolt clamp experiment. Both are seconds per day.
+    \item \textbf{Live, on 5--20 dates:} the Chronos-T5 sampling head and the
+          open-weights language model. Enough to see the mechanism and to check your
+          output against the file.
+    \item \textbf{From \texttt{precomputed/}:} the 500-day panels for every model and
+          all five assets.
+    \item \textbf{On the full panel:} backtests, DM tests, the news comparison against
+          its control, and the cross-asset table.
+  \end{enumerate}
+  \vspace{0.4em}
+  \begin{block}{Before you arrive}
+    \begin{itemize}
+      \item Weights are cached in the room. Nobody spends the laboratory downloading
+            3 GB.
+      \item Your group gets one of the five assets. The ranking is not stable across
+            them, and the reason is the point.
+    \end{itemize}
+  \end{block}
+\end{frame}
+
+\begin{frame}{Three things to leave with}
+  \begin{enumerate}
+    \item A pretrained model produces a number for any question you ask.
+      \begin{itemize}
+        \item Whether it answered \emph{your} question is a separate check, and it is
+              on you. The clamp is the cheap version of an expensive failure.
+      \end{itemize}
+    \item Well formed is not informative.
+      \begin{itemize}
+        \item A model can pass every schema check and emit one number all year.
+              Count the distinct outputs.
+      \end{itemize}
+    \item Ranking, validation and power are three different operations.
+      \begin{itemize}
+        \item The pinball loss orders models; the coverage tests decide whether any may
+              be used; the power calculation decides whether either statement means
+              anything at all.
+      \end{itemize}
+  \end{enumerate}
+  \vspace{0.4em}
+  \begin{itemize}
+    \item[\textcolor{IDAred}{$\boxdot$}] \textcolor{IDAred}{Every number here is
+          regenerated by one script and re-derived from the data by another.}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[allowframebreaks]{References}
+  \printbibliography[heading=none]
+  \vspace{0.3em}
+  \centering\tiny\textcolor{DarkGray}{Every DOI resolved and every link checked on
+  2026-08-02. Titles are live links.}
+\end{frame}
+
+\end{document}

@@ -1,0 +1,133 @@
+{
+  "source": "aida-risk certified run; see aida-risk/README.md",
+  "protocol": "rolling window 1000d, refit every 20d, burn-in 250d, info up to t-1",
+  "test_n": 500,
+  "benchmark_models": [
+    "HS",
+    "GARCH-t",
+    "NN-t"
+  ],
+  "assets": {
+    "SPX": {
+      "ticker": "^GSPC",
+      "label": "S&P 500",
+      "n_obs": 6791,
+      "sample": [
+        "1998-01-05",
+        "2024-12-30"
+      ],
+      "test_span": [
+        "2023-01-04",
+        "2024-12-30"
+      ],
+      "benchmarks_present": [
+        "GARCH-t",
+        "HS",
+        "NN-t"
+      ],
+      "levels": [
+        0.01,
+        0.05,
+        0.1
+      ],
+      "sha256_returns": "914383783bed",
+      "sha256_bench": "8261743cb21a"
+    },
+    "DAX": {
+      "ticker": "^GDAXI",
+      "label": "DAX 40",
+      "n_obs": 6851,
+      "sample": [
+        "1998-01-05",
+        "2024-12-30"
+      ],
+      "test_span": [
+        "2023-01-13",
+        "2024-12-30"
+      ],
+      "benchmarks_present": [
+        "GARCH-t",
+        "HS",
+        "NN-t"
+      ],
+      "levels": [
+        0.01,
+        0.05
+      ],
+      "sha256_returns": "698c62adc98b",
+      "sha256_bench": "a1ecfa2c4b54"
+    },
+    "N225": {
+      "ticker": "^N225",
+      "label": "Nikkei 225",
+      "n_obs": 6617,
+      "sample": [
+        "1998-01-06",
+        "2024-12-30"
+      ],
+      "test_span": [
+        "2022-12-20",
+        "2024-12-30"
+      ],
+      "benchmarks_present": [
+        "GARCH-t",
+        "HS",
+        "NN-t"
+      ],
+      "levels": [
+        0.01,
+        0.05
+      ],
+      "sha256_returns": "06a6296bcde2",
+      "sha256_bench": "db6b80ecb46f"
+    },
+    "GOLD": {
+      "ticker": "GC=F",
+      "label": "Gold futures",
+      "n_obs": 6104,
+      "sample": [
+        "2000-08-31",
+        "2024-12-30"
+      ],
+      "test_span": [
+        "2023-01-04",
+        "2024-12-30"
+      ],
+      "benchmarks_present": [
+        "GARCH-t",
+        "HS",
+        "NN-t"
+      ],
+      "levels": [
+        0.01,
+        0.05
+      ],
+      "sha256_returns": "40ad151ac406",
+      "sha256_bench": "9a12f397fd1c"
+    },
+    "BTC": {
+      "ticker": "BTC-USD",
+      "label": "Bitcoin",
+      "n_obs": 3757,
+      "sample": [
+        "2014-09-18",
+        "2024-12-30"
+      ],
+      "test_span": [
+        "2023-08-19",
+        "2024-12-30"
+      ],
+      "benchmarks_present": [
+        "GARCH-t",
+        "HS",
+        "NN-t"
+      ],
+      "levels": [
+        0.01,
+        0.05
+      ],
+      "sha256_returns": "67ce6f61e0a8",
+      "sha256_bench": "072bd22d5b40"
+    }
+  }
+}

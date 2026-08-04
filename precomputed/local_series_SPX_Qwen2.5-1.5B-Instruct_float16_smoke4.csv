@@ -1,0 +1,5 @@
+date,var_01,var_05,var,prob_negative,prob_tail,risk_score,confidence,raw_ok,sign_ok,order_ok,n_headlines
+2023-01-04,2.52,1.46,2.52,0.99,0.99,85.0,0.99,True,True,True,0
+2023-01-05,2.52,1.46,2.52,0.99,0.99,85.0,0.99,True,True,True,0
+2023-01-06,2.52,1.46,2.52,0.99,0.99,85.0,0.99,True,True,True,0
+2023-01-09,2.52,1.46,2.52,0.99,0.99,85.0,0.99,True,True,True,0

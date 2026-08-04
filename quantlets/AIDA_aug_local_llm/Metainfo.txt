@@ -1,0 +1,15 @@
+Name of QuantLet: AIDA_aug_local_llm
+
+Published in: AIDA Summer School 2026 - AI in Financial Risk Modelling (August course)
+
+Description: The same experiment with open weights, so it can be reproduced without a commercial key. Imports the prompt and parser from the commercial stage, so the two legs differ in exactly one thing: which model reads the prompt.
+
+Keywords: value-at-risk, backtesting, kupiec, christoffersen, diebold-mariano, foundation-model, large-language-model, zero-shot, risk-management, financial-econometrics
+
+Author: Daniel Traian Pele
+
+Submitted: 2026-07-31
+
+Datafile: data/lab/returns_*.csv
+
+Output: precomputed/local_*.csv

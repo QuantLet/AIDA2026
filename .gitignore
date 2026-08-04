@@ -1,0 +1,38 @@
+# Raw news dumps: 136 MB of full article bodies, regenerable with
+#   python3 src/06_news.py --asset SPX
+# The aligned file (data/news/headlines_*.csv, ~200 KB) is the one the lab needs
+# and is deliberately NOT ignored.
+data/news/raw_*.jsonl
+
+# Resumable Chronos-T5 checkpoints
+precomputed/_t5_raw_*.csv
+
+# Resumable LLMTime checkpoints and run logs
+precomputed/_llmtime_*.csv
+precomputed/_local_*.csv
+logs/
+
+# LaTeX build artefacts
+slides/*.aux
+slides/*.log
+slides/*.nav
+slides/*.out
+slides/*.snm
+slides/*.toc
+
+__pycache__/
+
+# macOS and remaining LaTeX build artefacts
+.DS_Store
+slides/*.fdb_latexmk
+slides/*.fls
+slides/*.bcf
+slides/*.run.xml
+slides/*.bbl
+slides/*.blg
+
+# Figures pulled from QuantLet/LLM_Risk that this deck does not use. The two panels the
+# deck crops from are kept, so the crop is reproducible; the rest belong to that repo.
+figures/eswa/eswa_LLM_System.png
+figures/eswa/eswa_VaR_exceedances_llmtime_120_gpt4o.png
+figures/eswa/eswa_VaR_exceedances_garch_normal_250.png

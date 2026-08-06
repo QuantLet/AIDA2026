@@ -649,9 +649,10 @@ also put through a model with **open weights**, downloaded from Hugging Face exa
 way Chronos was, running on this machine.
 
 - `Qwen2.5-1.5B-Instruct` — about 3 GB, roughly a second per forecast on a Colab GPU
-  and a few seconds on CPU.
-- `Qwen2.5-3B-Instruct` — twice the size, and it is in the package for a reason you will
-  see in a moment.
+  and a few seconds on CPU. This is the leg you run yourself.
+- `Qwen2.5-3B-Instruct` — twice the size, shipped precomputed. It is here to answer one
+  question: **does a larger model give a more informative VaR?** The next cell counts
+  distinct outputs, which is where the answer shows up.
 
 The prompt, the JSON schema and the parser are **imported** from the commercial stage
 rather than copied, so the two legs differ in exactly one thing: which model reads the

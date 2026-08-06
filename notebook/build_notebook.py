@@ -103,10 +103,11 @@ so budget the downloads every time.
 | 4. Chronos-T5 sampling resolution, 12 dates x 500 paths | ~2 min | ~80 MB, `chronos-t5-mini` |
 | 5. LLM parsing and logical checks | seconds | shipped as data |
 | 6. Dated versus dated+news | seconds | shipped as data |
-| 6.1 Open weights live, 16 dates | ~8 min on CPU, ~1 min on a T4 | **3.1 GB**, `Qwen2.5-1.5B` |
+| 6.1 Open weights live, 16 dates | **~11 min** on CPU, ~1 min on a T4 | 3.1 GB, `Qwen2.5-1.5B` |
 | 7. Coverage, loss and disagreement | seconds | — |
 
-**Compute is about 15 minutes of the two hours.** Everything else is reading, writing and
+**Compute is about 18 minutes of the two hours**, and 11 of those are the optional
+live open-weights cell. Everything else is reading, writing and
 arguing about what the numbers mean, which is the point of the session. Two consequences
 worth planning around:
 
@@ -657,7 +658,7 @@ way Chronos was, running on this machine.
 The prompt, the JSON schema and the parser are **imported** from the commercial stage
 rather than copied, so the two legs differ in exactly one thing: which model reads the
 prompt.
-""", "slow", mins="8 minutes on CPU, 1 on a GPU")
+""", "slow", mins="11 minutes on CPU, 1 on a GPU")
 
 code(r"""
 open_llm = {}
@@ -701,7 +702,9 @@ live; it is the only place in this notebook where **you** run a language model.
 """)
 
 code(r"""
-# ~1 min on a Colab GPU, a few minutes on CPU. Raise N_OPEN if you have time.
+# Measured on Colab: 11 minutes on a CPU runtime, about 1 on a T4. The 3.1 GB
+# download is under a minute of that; the rest is 16 generations on two vCPUs.
+# Set RUN_OPEN_LIVE = False to skip it and use the shipped file.
 N_OPEN = 16
 RUN_OPEN_LIVE = True
 

@@ -179,9 +179,9 @@ and the answer for our span is sobering: it detects a *doubling* of the breach r
 nothing finer.
 
 This is the binding constraint of the whole laboratory and it is not hidden anywhere in
-the results. Read every verdict in section 4 through it: a model that "passes" at 1% on
+the results. Read every verdict in section 7 through it: a model that "passes" at 1% on
 500 days has cleared a low bar, and the classical models are also shown on the certified
-5541-day run at the end of section 4, where the bar is much higher.
+5541-day run at the end of section 7, where the bar is much higher.
 """, "required", mins="seconds")
 
 code(r"""
@@ -620,7 +620,7 @@ you would use to separate the two.
 md(r"""
 ### 6.1 The same experiment, with a model you run yourself
 
-Everything above came from a commercial endpoint. If you have a key, section 3 is
+Everything above came from a commercial endpoint. If you have a key, section 5 is
 reproducible; if you do not, it is a table someone else computed. So the same prompt is
 also put through a model with **open weights**, downloaded from Hugging Face exactly the
 way Chronos was, running on this machine.

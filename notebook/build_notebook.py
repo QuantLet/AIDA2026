@@ -96,7 +96,7 @@ every time.
 
 | section | compute | of which download |
 |---|---|---|
-| 1. Setup and reproducibility checks | ~1 min | 10 MB of data |
+| 1. Setup and reproducibility checks | ~10 s | ~20 MB, the repository |
 | 1.1 Power | seconds | — |
 | 2. Historical simulation | seconds | — |
 | 3. Chronos-Bolt capability audit | ~2 min | ~190 MB, `chronos-bolt-small` |
@@ -120,14 +120,14 @@ worth planning around:
 md(r"""
 ## 1. Setup and reproducibility checks
 
-Run this cell first. It works in three situations: inside the course repository, on
-Colab with `aida_lab_data.zip` uploaded, and on Colab with nothing but a network
-connection (it will download the price series live, and say so).
+Run this cell first. Inside the course repository it uses the files next to it; on
+Colab it clones the public repository, which takes a few seconds and needs nothing from
+you. If GitHub is unreachable it falls back to asking for `aida_lab_data.zip`.
 
 **You need no API key at any point.** The language-model forecasts and the news
 headlines are shipped as data. The only thing fetched at run time is the Chronos model
 itself, from Hugging Face, which is a public download.
-""", "required", mins="1 minute")
+""", "required", mins="10 seconds")
 
 code(r"""
 import os, sys, pathlib

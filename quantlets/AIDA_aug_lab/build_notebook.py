@@ -396,21 +396,28 @@ else:
 """)
 
 code(r"""
-N_LIVE, N_SAMPLES = 40, 500      # ~2 minutes on a Colab CPU
+N_LIVE, N_SAMPLES = 40, 500
+
+# One date at a time. The sampling head decodes BATCH * N_SAMPLES sequences in
+# parallel, so a batch of four at 500 draws is 2000 of them at once: that fits on a
+# workstation and exhausts the RAM of a free Colab runtime, which then restarts and
+# loses every variable above. Measured, not guessed.
+BATCH = 1
 
 t5m = BaseChronosPipeline.from_pretrained(
     "amazon/chronos-t5-mini", device_map="cpu", dtype=torch.float32)
 
 torch.manual_seed(42)
 live = {}
-for k in range(0, N_LIVE, 4):
-    chunk = idx[k:k + 4]
+for k in range(0, N_LIVE, BATCH):
+    chunk = idx[k:k + BATCH]
     ctx = torch.tensor(np.stack([px[t - CTX:t] for t in chunk]), dtype=torch.float32)
     with torch.no_grad():
         samp = t5m.predict(ctx, 1, num_samples=N_SAMPLES)[:, :, 0].numpy()
     for j, t in enumerate(chunk):
         rs = 100.0 * np.log(np.maximum(samp[j], 1e-8) / px[t - 1])
         live[bench.index[k + j]] = -float(np.quantile(rs, ALPHA))
+    del samp
 
 live = pd.Series(live).rename_axis("date")
 if t5 is not None:

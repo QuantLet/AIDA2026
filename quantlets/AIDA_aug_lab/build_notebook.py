@@ -284,6 +284,17 @@ a predictive standard deviation of 0.14 against a realised 1.22.
 
 code(r"""
 !pip install -q chronos-forecasting
+
+# Hugging Face asks Colab for an `HF_TOKEN` secret and, when the notebook has no access
+# to it, Colab raises a permission dialog. Nothing here needs a token: every model is a
+# public download. This marks the lookup as already done, so the dialog never appears.
+# If you ever see it, in this notebook or another, the correct answer is Cancel.
+try:
+    from huggingface_hub.utils import _auth
+    _auth._IS_GOOGLE_COLAB_CHECKED = True
+    _auth._GOOGLE_COLAB_SECRET = None
+except Exception:
+    pass
 """)
 
 code(r"""

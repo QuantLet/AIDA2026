@@ -53,12 +53,13 @@ md(r"""
 
 One question, four kinds of answer.
 
-$$\widehat{\mathrm{VaR}}_{t}(\alpha)\ \text{such that}\quad
-\Pr\!\left(r_{t} < -\widehat{\mathrm{VaR}}_{t}(\alpha)\ \middle|\ \Omega_{t-1}\right) = \alpha ,
+$$\Pr\left(r_{t} < -\widehat{\mathrm{VaR}}_{t}(\alpha)\right) = \alpha ,
 \qquad \alpha = 1\%$$
 
-Every model in this notebook sees the same information set $\Omega_{t-1}$ and is
-scored on the same 500 days. The models are:
+with everything on the right-hand side computed from information available at $t-1$.
+
+Every model in this notebook sees the same information and is scored on the same
+500 days. The models are:
 
 | | how it produces tomorrow's number |
 |---|---|
@@ -422,9 +423,10 @@ a sampling model to three decimal places?
 md(r"""
 ## 5. The LLM: output parsing and logical checks
 
-The method is the one in Pele et al. (2025), *In the Beginning was the Word: LLM-VaR
+The method is the one in Pele et al. (2026), *In the Beginning was the Word: LLM-VaR
 and LLM-ES* (Expert Systems with Applications). The return series is written out as
-text, the model is asked for the 5% quantile of tomorrow's return, and the number is
+text, the model is asked for the 1% and 5% quantiles of tomorrow's return, and the
+number is
 read out of the reply. There is no VaR head and no fine-tuning; the forecast comes from
 prompted generation.
 
@@ -435,19 +437,19 @@ Four information sets are shipped, for every asset:
 | `series` | the last 60 returns, anonymised |
 | `series+state` | the same, plus realised volatility, drawdown and the HS VaR |
 | `dated` | the same returns, plus the asset name and the date |
-| `dated+news` | the same, plus the real headlines available at $t-1$ (section 3.1) |
+| `dated+news` | the same, plus the real headlines available at $t-1$ (section 6) |
 
 **Why two of them are anonymised.** The model's training data covers these dates. Tell
 it "S&P 500, 5 August 2024" and a good forecast may be recall rather than inference,
 and recall is not available for tomorrow. The `dated` configuration exists to *measure*
-that effect — and to serve as the control for the news test in section 3.1.
+that effect — and to serve as the control for the news test in section 6.
 
 **The headlines are real.** They come from EODHD, not from anyone's imagination: a
 headline file written to match the returns would manufacture the relation it claims to
-test. How they are aligned to the forecast dates is section 3.1, and it is the part
+test. How they are aligned to the forecast dates is section 6, and it is the part
 worth arguing with.
 
-This section works with the first two. The last two are section 3.1's business.
+This section works with the first two. The last two are section 6's business.
 """, "required", mins="seconds")
 
 code(r"""
@@ -462,7 +464,7 @@ for cfg, key in [("series", "LLM-series"), ("series_state", "LLM-series+state")]
     ok = d["raw_ok"] & d["sign_ok"]
     llm[key] = d.loc[ok, "var"]
     print(f"  {key}: {len(d)} replies, {int((~d['raw_ok']).sum())} unparseable, "
-          f"{int((d['raw_ok'] & ~d['sign_ok']).sum())} with a non-negative 5% quantile, "
+          f"{int((d['raw_ok'] & ~d['sign_ok']).sum())} with a non-negative quantile, "
           f"mean VaR {llm[key].mean():.2f}")
 """)
 
@@ -470,7 +472,7 @@ md(r"""
 Two failure counts are printed above and both are results.
 
 An **unparseable** reply is an engineering failure: the model wrote prose where JSON was
-asked for. A reply with a **non-negative 5% quantile** is worse, because it parses. It
+asked for. A reply with a **non-negative quantile** is worse, because it parses. It
 asserts that the worst 5% of days is a gain, and it would flow into every downstream
 number without tripping anything. Neither is repaired here; both are counted.
 """)
@@ -776,7 +778,7 @@ lb.round(4)
 
 md(r"""
 **Chronos-Bolt is scored against the wrong nominal level on purpose.** Its number is a
-10% quantile; the table judges every column at 5%. It should look badly calibrated, and
+10% quantile; the table judges every column at 1%. It should look badly calibrated, and
 it is not a defect of the model: it is what happens when a forecast is used at a level
 the artefact cannot produce. Score it at its own level to see the difference.
 """)
@@ -917,7 +919,7 @@ md(r"""
 Everything below runs from the files you already have. **None of them needs an API key**
 — which is itself the point of the last one.
 
-- **Swap the asset.** All five carry the same eight models. Bitcoin is a different
+- **Swap the asset.** All five carry the same models. Bitcoin is a different
   regime, the Nikkei's news coverage is half the S&P's, and the ranking is not stable
   across them. Change `ASSET` in the first cell and rerun.
 - **Go to $\alpha = 1\%$.** `load_benchmarks(ASSET, level=0.01)` and the Chronos-T5

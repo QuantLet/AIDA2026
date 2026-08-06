@@ -54,10 +54,10 @@ md(r"""
 One question, four kinds of answer.
 
 $$\widehat{\mathrm{VaR}}_{t}(\alpha)\ \text{such that}\quad
-\Pr\!\left(r_{t} < -\widehat{\mathrm{VaR}}_{t}(\alpha)\ \middle|\ \mathcal{I}_{t-1}\right) = \alpha ,
+\Pr\!\left(r_{t} < -\widehat{\mathrm{VaR}}_{t}(\alpha)\ \middle|\ \Omega_{t-1}\right) = \alpha ,
 \qquad \alpha = 1\%$$
 
-Every model in this notebook sees the same information set $\mathcal{I}_{t-1}$ and is
+Every model in this notebook sees the same information set $\Omega_{t-1}$ and is
 scored on the same 500 days. The models are:
 
 | | how it produces tomorrow's number |

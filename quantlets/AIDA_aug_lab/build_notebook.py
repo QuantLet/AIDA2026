@@ -100,7 +100,7 @@ so budget the downloads every time.
 | 1.1 Power | seconds | — |
 | 2. Historical simulation | seconds | — |
 | 3. Chronos-Bolt capability audit | ~1.5 min | ~35 MB, `chronos-bolt-tiny` |
-| 4. Chronos-T5 sampling resolution, 40 dates x 500 paths | ~3 min | ~80 MB, `chronos-t5-mini` |
+| 4. Chronos-T5 sampling resolution, 12 dates x 500 paths | ~2 min | ~80 MB, `chronos-t5-mini` |
 | 5. LLM parsing and logical checks | seconds | shipped as data |
 | 6. Dated versus dated+news | seconds | shipped as data |
 | 6.1 Open weights live, 16 dates | ~8 min on CPU, ~1 min on a T4 | **3.1 GB**, `Qwen2.5-1.5B` |
@@ -392,9 +392,10 @@ So the Chronos-T5 number is an order statistic of five points. That is a modelli
 choice with the same standing as the window length in historical simulation, and it is
 reported about as often as never.
 
-It costs about 3 seconds per forecast on a CPU, so the full 500-day run is precomputed
+It costs about nine seconds per forecast on a Colab CPU, so the full 500-day run is
+precomputed
 and shipped. Reproduce a slice of it live, then check your slice against the file.
-""", "slow", mins="3 minutes")
+""", "slow", mins="2 minutes")
 
 code(r"""
 t5_pre = al.load_precomputed(f"chronos_t5_{ASSET}.csv")
@@ -407,7 +408,11 @@ else:
 """)
 
 code(r"""
-N_LIVE, N_SAMPLES = 40, 500
+# 12 dates, not 40: measured on a free Colab CPU runtime, one date at a time costs
+# about nine seconds, so 40 would be nearly ten minutes of a two-hour laboratory.
+# Twelve is enough to correlate your slice against the shipped file. Raise it if you
+# have a GPU runtime or time to spare.
+N_LIVE, N_SAMPLES = 12, 500
 
 # One date at a time. The sampling head decodes BATCH * N_SAMPLES sequences in
 # parallel, so a batch of four at 500 draws is 2000 of them at once: that fits on a

@@ -135,13 +135,20 @@ import os, sys, pathlib
 IN_COLAB = "google.colab" in sys.modules
 
 if IN_COLAB and not pathlib.Path("aidalab.py").exists():
-    # Upload aida_lab_data.zip when prompted. One file, 1.2 MB: the helper module,
-    # the return series, the aligned headlines and every precomputed forecast.
-    # The whole laboratory runs from it. You need no API key of any kind.
-    from google.colab import files
-    files.upload()
-    import zipfile
-    zipfile.ZipFile("aida_lab_data.zip").extractall(".")
+    # The course repository is public, so Colab fetches everything itself: the helper
+    # module, the return series, the aligned headlines and every precomputed forecast.
+    # About 20 MB, a few seconds, and no API key of any kind.
+    !git clone --depth 1 -q https://github.com/QuantLet/AIDA2026.git
+    if pathlib.Path("AIDA2026/notebook/aidalab.py").exists():
+        os.chdir("AIDA2026/notebook")
+        sys.path.insert(0, os.getcwd())
+        print("cloned the course repository")
+    else:
+        # Fallback for a room with no access to GitHub: upload aida_lab_data.zip.
+        from google.colab import files
+        files.upload()
+        import zipfile
+        zipfile.ZipFile("aida_lab_data.zip").extractall(".")
 
 import numpy as np
 import pandas as pd

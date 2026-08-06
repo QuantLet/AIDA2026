@@ -208,9 +208,19 @@ def load_precomputed(name: str, root=None) -> pd.DataFrame | None:
     written to continue without that model rather than fail.
     """
     root = data_root(root)
-    cand = None if root is None else root.parent.parent / "precomputed" / name
-    if cand is not None and cand.exists():
-        return pd.read_csv(cand, parse_dates=["date"])
+    pre = None if root is None else root.parent.parent / "precomputed"
+    if pre is not None:
+        cand = pre / name
+        if cand.exists():
+            return pd.read_csv(cand, parse_dates=["date"])
+        # A run that set --dtype carries it in the filename, so
+        # local_series_SPX_Qwen2.5-3B-Instruct.csv ships as ..._float16.csv. Match on
+        # the stem: a fixed name reported the file as missing while it sat on disk.
+        stem, ext = name.rsplit(".", 1)
+        alt = [q for q in sorted(pre.glob(f"{stem}*.{ext}"))
+               if not q.name.startswith("_") and "smoke" not in q.name]
+        if alt:
+            return pd.read_csv(alt[0], parse_dates=["date"])
     try:
         return _read_csv(f"../precomputed/{name}", root, parse_dates=["date"])
     except Exception:

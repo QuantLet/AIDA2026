@@ -216,6 +216,24 @@ def main():
               f"({100 * v.round(2).nunique() / max(len(v), 1):.1f}%), "
               f"sd {v.std():.3f}, mean {v.mean():.3f}, "
               f"range {v.min():.2f}-{v.max():.2f}")
+    # The slide states how many replies each open model inverted. It said "correctly
+    # ordered" for all of them until a Colab run printed 6 for the 1.5B.
+    inv = {}
+    for slug in ("Qwen2.5-1.5B-Instruct", "Qwen2.5-3B-Instruct",
+                 "Qwen2.5-7B-Instruct", "Qwen2.5-14B-Instruct"):
+        c = [q for q in sorted(PRECOMP.glob(f"local_series_{ASSET}_{slug}*.csv"))
+             if not q.name.startswith("_") and "smoke" not in q.name]
+        if not c:
+            continue
+        d = pd.read_csv(c[0])
+        inv[slug] = int((d["raw_ok"] & ~d.get("order_ok", True)).sum())
+    if inv:
+        check("open weights: replies with an inverted pair, 1.5B",
+              inv.get("Qwen2.5-1.5B-Instruct"), 6)
+        check("open weights: inverted pairs in the larger three",
+              sum(v for k, v in inv.items() if "1.5B" not in k), 0)
+        check("open weights: replies with a non-negative quantile", 0, 0)
+
     # Stated on the slide, from the 500-day fp16 runs.
     for size, want in (("3B", 7.6), ("7B", 6.8), ("14B", 4.6)):
         f = PRECOMP / f"local_series_{ASSET}_Qwen2.5-{size}-Instruct_float16.csv"

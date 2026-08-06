@@ -89,17 +89,17 @@ locally, and no API key is required at any point.*
 md(r"""
 ### How long the laboratory takes
 
-Timings measured on one CPU (Apple M5 Max) and multiplied by four, which is roughly how
-much slower a free two-vCPU Colab runtime is on this kind of work. Downloads assume a
-normal connection and are one-off: Colab caches nothing between sessions, so budget them
-every time.
+Sections 1 to 3 were **measured on Colab** on 2026-08-06. The rest are measured on one
+CPU (Apple M5 Max) and multiplied by four, which is roughly how much slower a free
+two-vCPU Colab runtime is on this kind of work. Colab caches nothing between sessions,
+so budget the downloads every time.
 
 | section | compute | of which download |
 |---|---|---|
 | 1. Setup and reproducibility checks | ~10 s | ~20 MB, the repository |
 | 1.1 Power | seconds | — |
 | 2. Historical simulation | seconds | — |
-| 3. Chronos-Bolt capability audit | ~2 min | ~190 MB, `chronos-bolt-small` |
+| 3. Chronos-Bolt capability audit | ~1.5 min | ~35 MB, `chronos-bolt-tiny` |
 | 4. Chronos-T5 sampling resolution, 40 dates x 500 paths | ~3 min | ~80 MB, `chronos-t5-mini` |
 | 5. LLM parsing and logical checks | seconds | shipped as data |
 | 6. Dated versus dated+news | seconds | shipped as data |
@@ -280,7 +280,7 @@ $r = 100\log(\hat P_t / P_{t-1})$, a monotone transform, so a price quantile map
 the return quantile of the same level. Feeding it the return series directly was tried
 in the certified pipeline: returns are near-zero-mean noise and the model collapses to
 a predictive standard deviation of 0.14 against a realised 1.22.
-""", "required", mins="2 minutes, most of it the download")
+""", "required", mins="1.5 minutes")
 
 code(r"""
 !pip install -q chronos-forecasting

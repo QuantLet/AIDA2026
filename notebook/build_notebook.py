@@ -27,11 +27,17 @@ BADGE = {
 }
 
 
-def md(text, tag=None):
-    """A markdown cell. `tag` prints one of the four lab badges above it."""
+def md(text, tag=None, mins=None):
+    """A markdown cell. `tag` prints one of the four lab badges above it, and `mins`
+    the wall-clock estimate for the section on a free Colab CPU runtime."""
     body = text.strip("\n")
+    line = []
     if tag:
-        body = f"{BADGE[tag]}\n\n{body}"
+        line.append(BADGE[tag])
+    if mins:
+        line.append(f"*runs in about **{mins}** on a Colab CPU runtime*")
+    if line:
+        body = "  ·  ".join(line) + "\n\n" + body
     CELLS.append((MD, body))
 
 
@@ -69,6 +75,46 @@ which of them is sophisticated.
 **Sign convention.** VaR is reported as a positive loss. Day $t$ is a breach when
 $r_t < -\mathrm{VaR}_t$. Charts are drawn on the return axis with the tail on the left.
 """)
+COLAB = ("https://colab.research.google.com/github/QuantLet/AIDA2026/blob/main/"
+         "notebook/AIDA_Risk_Lab.ipynb")
+
+md(f"""
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)]({COLAB})
+
+*Click the badge to open this notebook in Google Colab. Nothing needs to be installed
+locally, and no API key is required at any point.*
+""")
+
+md(r"""
+### How long the laboratory takes
+
+Timings measured on one CPU (Apple M5 Max) and multiplied by four, which is roughly how
+much slower a free two-vCPU Colab runtime is on this kind of work. Downloads assume a
+normal connection and are one-off: Colab caches nothing between sessions, so budget them
+every time.
+
+| section | compute | of which download |
+|---|---|---|
+| 1. Setup and reproducibility checks | ~1 min | 10 MB of data |
+| 1.1 Power | seconds | — |
+| 2. Historical simulation | seconds | — |
+| 3. Chronos-Bolt capability audit | ~2 min | ~190 MB, `chronos-bolt-small` |
+| 4. Chronos-T5 sampling resolution, 40 dates x 500 paths | ~3 min | ~80 MB, `chronos-t5-mini` |
+| 5. LLM parsing and logical checks | seconds | shipped as data |
+| 6. Dated versus dated+news | seconds | shipped as data |
+| 6.1 Open weights live, 16 dates | ~8 min on CPU, ~1 min on a T4 | **3.1 GB**, `Qwen2.5-1.5B` |
+| 7. Coverage, loss and disagreement | seconds | — |
+
+**Compute is about 15 minutes of the two hours.** Everything else is reading, writing and
+arguing about what the numbers mean, which is the point of the session. Two consequences
+worth planning around:
+
+- **Start section 6.1 early** if you want the live open-weights run, or set
+  `RUN_OPEN_LIVE = False` and use the shipped file. The 3.1 GB download is the single
+  longest wait in the laboratory.
+- Everything marked `SLOW` has a precomputed fallback that loads in under a second, so a
+  failed download never blocks the rest of the notebook.
+""")
 
 md(r"""
 ## 1. Setup and reproducibility checks
@@ -80,7 +126,7 @@ connection (it will download the price series live, and say so).
 **You need no API key at any point.** The language-model forecasts and the news
 headlines are shipped as data. The only thing fetched at run time is the Chronos model
 itself, from Hugging Face, which is a public download.
-""", "required")
+""", "required", mins="1 minute")
 
 code(r"""
 import os, sys, pathlib
@@ -128,7 +174,7 @@ This is the binding constraint of the whole laboratory and it is not hidden anyw
 the results. Read every verdict in section 4 through it: a model that "passes" at 1% on
 500 days has cleared a low bar, and the classical models are also shown on the certified
 5541-day run at the end of section 4, where the bar is much higher.
-""", "required")
+""", "required", mins="seconds")
 
 code(r"""
 from scipy import stats
@@ -169,7 +215,7 @@ $$\widehat{\mathrm{VaR}}^{\mathrm{HS}}_{t}(\alpha) = -\,\widehat{Q}_{\alpha}
 - At $\alpha = 1\%$ a 250-day window has **two and a half** observations below the
   quantile. The estimator is reading two or three days. Everything historical simulation
   does at this level rests on them.
-""", "required")
+""", "required", mins="seconds")
 
 code(r"""
 # EXERCISE. Complete the function, then run the cell below it.
@@ -226,7 +272,7 @@ $r = 100\log(\hat P_t / P_{t-1})$, a monotone transform, so a price quantile map
 the return quantile of the same level. Feeding it the return series directly was tried
 in the certified pipeline: returns are near-zero-mean noise and the model collapses to
 a predictive standard deviation of 0.14 against a realised 1.22.
-""", "required")
+""", "required", mins="2 minutes, most of it the download")
 
 code(r"""
 !pip install -q chronos-forecasting
@@ -329,7 +375,7 @@ reported about as often as never.
 
 It costs about 3 seconds per forecast on a CPU, so the full 500-day run is precomputed
 and shipped. Reproduce a slice of it live, then check your slice against the file.
-""", "slow")
+""", "slow", mins="3 minutes")
 
 code(r"""
 t5_pre = al.load_precomputed(f"chronos_t5_{ASSET}.csv")
@@ -402,7 +448,7 @@ test. How they are aligned to the forecast dates is section 3.1, and it is the p
 worth arguing with.
 
 This section works with the first two. The last two are section 3.1's business.
-""", "required")
+""", "required", mins="seconds")
 
 code(r"""
 MODEL = "claude-haiku-4-5"
@@ -465,7 +511,7 @@ pairing them with the anonymised configuration would confound two effects:
 | `dated+news` | yes | yes | ← the treatment |
 
 The difference between the last two identifies the contribution of the text alone.
-""", "required")
+""", "required", mins="seconds")
 
 code(r"""
 news = al.load_precomputed(f"../data/news/headlines_{ASSET}.csv")
@@ -578,7 +624,7 @@ way Chronos was, running on this machine.
 The prompt, the JSON schema and the parser are **imported** from the commercial stage
 rather than copied, so the two legs differ in exactly one thing: which model reads the
 prompt.
-""", "slow")
+""", "slow", mins="8 minutes on CPU, 1 on a GPU")
 
 code(r"""
 open_llm = {}
@@ -710,7 +756,7 @@ $$L_\alpha = \frac{1}{T}\sum_{t=1}^{T}\left(\alpha - \mathbf{1}\{r_t < q_t\}\rig
 
 The breach count is not a scoring rule: a model can hit 5% exactly with thresholds that
 are wildly wrong day by day.
-""", "required")
+""", "required", mins="seconds")
 
 code(r"""
 models = {
@@ -798,7 +844,7 @@ R_t = \frac{\max_i \widehat{\mathrm{VaR}}_{i,t}}{\min_i \widehat{\mathrm{VaR}}_{
 
 This is the idea behind SYNCRISK: correlated risk *assessments* are themselves a source
 of systemic risk, because everyone de-risks on the same day.
-""", "optional")
+""", "optional", mins="seconds")
 
 code(r"""
 spread = al.disagreement({k: v for k, v in models.items() if k != "Chronos-Bolt"})

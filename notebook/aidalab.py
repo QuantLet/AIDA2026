@@ -43,7 +43,7 @@ __all__ = [
     "set_seeds", "data_root", "load_returns", "load_benchmarks", "load_precomputed",
     "hs_var", "rolling_hs", "pinball_loss", "kupiec_uc", "christoffersen_ind",
     "conditional_coverage", "basel_zone", "brier_score", "backtest_table",
-    "leaderboard", "dm_test", "dm_matrix", "disagreement", "plot_tail", "plot_breaches",
+    "leaderboard", "dm_test", "dm_matrix", "disagreement", "legend_below", "plot_tail", "plot_breaches",
     "plot_disagreement", "plot_leaderboard", "save_fig",
 ]
 
@@ -101,6 +101,11 @@ plt.rcParams.update({
     "axes.titlesize": 11,
     "legend.frameon": False,
     "savefig.bbox": "tight",
+    # House convention: a legend never sits on the chart, and a figure never carries a
+    # background. Slides sit on a gradient and notebooks may be read in dark mode.
+    "savefig.transparent": True,
+    "figure.facecolor": "none",
+    "axes.facecolor": "none",
 })
 
 
@@ -456,6 +461,16 @@ def disagreement(forecasts: dict) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 # Plotting
 # ---------------------------------------------------------------------------
+def legend_below(ax, ncol=3, y=-0.16, fontsize=9):
+    """Legend outside the axes, centred below them.
+
+    Not only cosmetic: the interesting part of a VaR chart is the lower-left tail,
+    which is exactly where matplotlib prefers to drop a legend box.
+    """
+    return ax.legend(loc="upper center", bbox_to_anchor=(0.5, y), ncol=ncol,
+                     fontsize=fontsize, frameon=False)
+
+
 def plot_tail(ret: pd.Series, forecasts: dict, title: str = "", ax=None,
               show_breaches: str | None = None):
     """Returns as a line, each VaR forecast as a threshold on the return axis.
@@ -477,8 +492,7 @@ def plot_tail(ret: pd.Series, forecasts: dict, title: str = "", ax=None,
                    label=f"{MODEL_LABELS.get(show_breaches, show_breaches)} breaches")
     ax.set_ylabel("Daily return (%)")
     ax.set_title(title)
-    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.12), ncol=3, fontsize=8,
-              frameon=False)
+    legend_below(ax, ncol=3, y=-0.14)
     return ax
 
 
@@ -496,7 +510,7 @@ def plot_breaches(bt: pd.DataFrame, alpha: float = ALPHA, ax=None):
             color=[MODEL_COLORS.get(m, GREY) for m in b["model"]], height=0.6)
     ax.set_xlabel(f"Breaches in {n} days at alpha = {alpha:.0%}")
     ax.grid(axis="y", visible=False)
-    ax.legend(fontsize=8, loc="lower right")
+    legend_below(ax, ncol=2, y=-0.18)
     return ax
 
 
@@ -509,7 +523,7 @@ def plot_disagreement(spread: pd.DataFrame, ax=None):
     ax.set_ylabel("VaR threshold, return axis (%)")
     ax.set_title(f"Median spread {spread['range'].median():.2f}pp, "
                  f"median max/min {spread['ratio'].median():.2f}x")
-    ax.legend(fontsize=8)
+    legend_below(ax, ncol=2, y=-0.16)
     return ax
 
 
@@ -529,6 +543,6 @@ def save_fig(fig, name: str, outdir="figures", dpi=300):
     """Export to PDF and 300 dpi PNG, as everywhere else in this project."""
     out = Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out / f"{name}.pdf", bbox_inches="tight")
-    fig.savefig(out / f"{name}.png", dpi=dpi, bbox_inches="tight")
+    fig.savefig(out / f"{name}.pdf", bbox_inches="tight", transparent=True)
+    fig.savefig(out / f"{name}.png", dpi=dpi, bbox_inches="tight", transparent=True)
     return out / f"{name}.pdf"

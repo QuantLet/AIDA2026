@@ -880,6 +880,13 @@ R_t = \frac{\max_i \widehat{\mathrm{VaR}}_{i,t}}{\min_i \widehat{\mathrm{VaR}}_{
 
 This is the idea behind SYNCRISK: correlated risk *assessments* are themselves a source
 of systemic risk, because everyone de-risks on the same day.
+
+Your numbers will not match the lecture slide, and the reason is the model set rather
+than the data. The slide measures the nine forecasts of the primary comparison, which
+include the open-weights model; this cell measures the set you built above, which
+carries `HS-250` instead. The open model is the most extreme forecaster in the room, so
+dropping it narrows the band from 2.59pp to 2.04pp. Which set you measure is itself a
+modelling decision, and it belongs in the caption of any spread you report.
 """, "optional", mins="seconds")
 
 code(r"""

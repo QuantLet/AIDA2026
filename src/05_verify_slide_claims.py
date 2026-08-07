@@ -16,6 +16,7 @@ Usage:  python src/05_verify_slide_claims.py [ASSET]
 Exit status is non-zero if any assertion fails.
 """
 
+import pathlib
 import runpy
 import sys
 from pathlib import Path
@@ -331,6 +332,15 @@ def main():
           str(R.mean().idxmin()), "HS")
     check("HS mean correlation with the rest", round(float(R.mean().min()), 2),
           0.21, 0.005)
+
+    # The laboratory must not print a different number for a statistic the slide states.
+    # It measures the same nine forecasts, so the check runs on both descriptions at once.
+    nb = pathlib.Path(HERE.parent / "notebook" / "build_notebook.py").read_text()
+    check("laboratory measures the primary nine for the spread",
+          'PRIMARY = ["HS", "GARCH-t", "NN-t", "Chronos-T5", "LLM-series",' in nb, True)
+    sp = al.disagreement({k: models[k] for k in prim if k in models})
+    check("median spread across the nine (pp)",
+          round(float(sp["range"].median()), 2), 2.59, 0.005)
 
     print("\n--- the five-asset table ---")
     tf = ROOT / "tables" / "backtest_all_assets.tex"

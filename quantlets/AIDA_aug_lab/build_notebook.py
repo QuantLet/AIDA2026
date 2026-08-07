@@ -881,16 +881,23 @@ R_t = \frac{\max_i \widehat{\mathrm{VaR}}_{i,t}}{\min_i \widehat{\mathrm{VaR}}_{
 This is the idea behind SYNCRISK: correlated risk *assessments* are themselves a source
 of systemic risk, because everyone de-risks on the same day.
 
-Your numbers will not match the lecture slide, and the reason is the model set rather
-than the data. The slide measures the nine forecasts of the primary comparison, which
-include the open-weights model; this cell measures the set you built above, which
-carries `HS-250` instead. The open model is the most extreme forecaster in the room, so
-dropping it narrows the band from 2.59pp to 2.04pp. Which set you measure is itself a
-modelling decision, and it belongs in the caption of any spread you report.
+Measured over the nine forecasts of the primary comparison, so your numbers match the
+lecture slide exactly. Which set you measure is itself a modelling decision: adding
+Chronos-Bolt, which is a 10% forecast, would widen the band for a reason that has
+nothing to do with disagreement.
 """, "optional", mins="seconds")
 
 code(r"""
-spread = al.disagreement({k: v for k, v in models.items() if k != "Chronos-Bolt"})
+# The primary comparison, and only it. Chronos-Bolt is a 10% forecast and would widen
+# the band for the wrong reason; HS-250 is your own variant of a model already in the
+# set. Adding either changes the spread without changing the disagreement it measures,
+# which is why the set is named here rather than taken from whatever is in `models`.
+PRIMARY = ["HS", "GARCH-t", "NN-t", "Chronos-T5", "LLM-series", "LLM-series+state",
+           "LLM-dated", "LLM-dated+news", "Open-1.5B"]
+prim = {k: v for k, v in {**models, **open_llm}.items() if k in PRIMARY}
+print(f"measuring {len(prim)} forecasts: {', '.join(prim)}\n")
+
+spread = al.disagreement(prim)
 fig, ax = plt.subplots(figsize=(11, 4.2))
 al.plot_disagreement(spread, ax=ax)
 plt.show()
@@ -902,7 +909,7 @@ print(f"realised return that day: {bench.loc[worst, 'ret']:.2f}%")
 """)
 
 code(r"""
-wide = pd.DataFrame({k: v for k, v in models.items()}).dropna()
+wide = pd.DataFrame(prim).dropna()
 print("pairwise correlation of the daily VaR forecasts\n")
 print(wide.corr().round(3).to_string())
 """)

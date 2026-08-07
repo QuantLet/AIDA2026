@@ -136,9 +136,7 @@ import os, sys, pathlib
 IN_COLAB = "google.colab" in sys.modules
 
 if IN_COLAB and not pathlib.Path("aidalab.py").exists():
-    # The course repository is public, so Colab fetches everything itself: the helper
-    # module, the return series, the aligned headlines and every precomputed forecast.
-    # About 20 MB, a few seconds, and no API key of any kind.
+    # ~20 MB: the helper module, the returns, the headlines and every forecast.
     !git clone --depth 1 -q https://github.com/QuantLet/AIDA2026.git
     if pathlib.Path("AIDA2026/notebook/aidalab.py").exists():
         os.chdir("AIDA2026/notebook")
@@ -286,10 +284,7 @@ a predictive standard deviation of 0.14 against a realised 1.22.
 code(r"""
 !pip install -q chronos-forecasting
 
-# Hugging Face asks Colab for an `HF_TOKEN` secret and, when the notebook has no access
-# to it, Colab raises a permission dialog. Nothing here needs a token: every model is a
-# public download. This marks the lookup as already done, so the dialog never appears.
-# If you ever see it, in this notebook or another, the correct answer is Cancel.
+# No token is needed here; this stops Colab asking for one. If it asks anyway: Cancel.
 try:
     from huggingface_hub.utils import _auth
     _auth._IS_GOOGLE_COLAB_CHECKED = True
@@ -409,17 +404,9 @@ else:
 """)
 
 code(r"""
-# 12 dates, not 40: measured on a free Colab CPU runtime, one date at a time costs
-# about nine seconds, so 40 would be nearly ten minutes of a two-hour laboratory.
-# Twelve is enough to correlate your slice against the shipped file. Raise it if you
-# have a GPU runtime or time to spare.
-N_LIVE, N_SAMPLES = 12, 500
+N_LIVE, N_SAMPLES = 12, 500      # ~9 s per date on a Colab CPU; raise if you have time
 
-# One date at a time. The sampling head decodes BATCH * N_SAMPLES sequences in
-# parallel, so a batch of four at 500 draws is 2000 of them at once: that fits on a
-# workstation and exhausts the RAM of a free Colab runtime, which then restarts and
-# loses every variable above. Measured, not guessed.
-BATCH = 1
+BATCH = 1                        # larger batches exhaust a free Colab runtime's RAM
 
 t5m = BaseChronosPipeline.from_pretrained(
     "amazon/chronos-t5-mini", device_map="cpu", dtype=torch.float32)
@@ -702,9 +689,7 @@ live; it is the only place in this notebook where **you** run a language model.
 """)
 
 code(r"""
-# Measured on Colab: 11 minutes on a CPU runtime, about 1 on a T4. The 3.1 GB
-# download is under a minute of that; the rest is 16 generations on two vCPUs.
-# Set RUN_OPEN_LIVE = False to skip it and use the shipped file.
+# ~11 min on a Colab CPU, ~1 on a T4. Set RUN_OPEN_LIVE = False to use the shipped file.
 N_OPEN = 16
 RUN_OPEN_LIVE = True
 
@@ -888,10 +873,8 @@ nothing to do with disagreement.
 """, "optional", mins="seconds")
 
 code(r"""
-# The primary comparison, and only it. Chronos-Bolt is a 10% forecast and would widen
-# the band for the wrong reason; HS-250 is your own variant of a model already in the
-# set. Adding either changes the spread without changing the disagreement it measures,
-# which is why the set is named here rather than taken from whatever is in `models`.
+# The primary comparison, named rather than inherited: Chronos-Bolt is a 10% forecast
+# and HS-250 duplicates a model already in the set.
 PRIMARY = ["HS", "GARCH-t", "NN-t", "Chronos-T5", "LLM-series", "LLM-series+state",
            "LLM-dated", "LLM-dated+news", "Open-1.5B"]
 prim = {k: v for k, v in {**models, **open_llm}.items() if k in PRIMARY}

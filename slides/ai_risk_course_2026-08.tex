@@ -983,7 +983,7 @@
 \end{frame}
 
 
-\begin{frame}{The LLM states a threshold, and it moves}
+\begin{frame}{Claude states a threshold, and it moves}
   \hfill\textcolor{MainBlue}{\scriptsize\textbf{RANKING}}\par\vspace{0.45em}
   \centering
   \includegraphics[width=0.655\textwidth]{s_llm}
@@ -1104,6 +1104,23 @@
       \item Two-sided Kupiec LR$_{UC}$ at $5\%$, exact binomial power.
       \item $80\%$ power arrives at \textbf{2.50\%} over 500 days.
       \item Over $5541$ days, twenty-two years of daily data, it arrives at $1.45\%$.
+  }
+  \quantlet{AIDA\_aug\_backtest}{\qlbase/quantlets/AIDA_aug_backtest}
+\end{frame}
+
+\begin{frame}{Every forecast, on one axis}
+  \hfill\textcolor{MainBlue}{\scriptsize\textbf{RANKING}}\par\vspace{0.45em}
+  \centering
+  \includegraphics[width=0.643\textwidth]{s_allvar}
+  \points{%
+      \item Nine forecasts, the same 500 days, the same target.
+        \begin{itemize}
+          \item Mean thresholds run from $1.35$ to $3.69$, a factor of nearly three.
+        \end{itemize}
+      \item \cred{Qwen sits closest to zero, and breaches seven times too often.}
+        \begin{itemize}
+          \item Historical simulation is the staircase at the bottom, and is rejected on two markets for being too safe.
+        \end{itemize}
   }
   \quantlet{AIDA\_aug\_backtest}{\qlbase/quantlets/AIDA_aug_backtest}
 \end{frame}

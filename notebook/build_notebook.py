@@ -113,7 +113,7 @@ caches nothing between sessions, so budget the downloads every time.
 
 **Compute is about 14 minutes of the two hours**, and 11 of those are the optional live
 open-weights cell. The rest of the time is yours: three functions to write in sections 2
-and 6.1, your group's own market in 6.4, and the five questions at the end. Budget
+and 6.2, your group's own market in 6.5, and the five questions at the end. Budget
 roughly 40 minutes for those, and the remainder for arguing about what the numbers mean,
 which is the point of the session. Two consequences
 worth planning around:
@@ -744,7 +744,38 @@ plt.tight_layout(); plt.show()
 """)
 
 md(r"""
-### 6.1 Two audits you write yourself
+### 6.1 Every forecast on one axis
+
+Before any test, look at them. Nine answers to the same question, on the same days,
+plotted together. The spread is the result the rest of this section quantifies.
+""", "required", mins="seconds")
+
+code(r'''
+fig, ax = plt.subplots(figsize=(12, 4.6))
+ax.plot(bench.index, bench["ret"], lw=0.5, color="#3F4B57", alpha=0.55,
+        label="realised return")
+for name, v in models.items():
+    v = v.dropna()
+    ax.plot(v.index, -v, lw=1.1, label=name)
+ax.set_ylabel("return and $-$VaR(1%), %")
+ax.set_title(f"{ASSET}: {len(models)} answers to one question")
+ax.legend(ncol=4, fontsize=8, loc="lower center", bbox_to_anchor=(0.5, -0.42))
+ax.grid(alpha=0.3)
+plt.tight_layout(); plt.show()
+
+print("mean threshold, lowest to highest:")
+for name, v in sorted(models.items(), key=lambda kv: kv[1].dropna().mean()):
+    print(f"  {name:24s} {v.dropna().mean():5.2f}")
+''')
+
+md(r"""
+The line closest to zero is the one that will breach most often: a smaller threshold is
+crossed more easily. Check the ordering above against the coverage column, and note that
+the two do not have to agree.
+""", "interpret")
+
+md(r"""
+### 6.2 Two audits you write yourself
 
 The lecture claimed two things a backtest cannot see. Both are a couple of lines, and
 you should write them rather than take them on trust.
@@ -794,7 +825,7 @@ print(bt[bt["model"].isin(["HS", "GARCH-t", "NN-t"])][["model", "observed", "p_u
 ''')
 
 md(r"""
-### 6.2 Ranking against calibration: is the gap real?
+### 6.3 Ranking against calibration: is the gap real?
 
 A leaderboard is an ordering. Whether the gap between two rows is larger than sampling
 noise is a separate question, and the Diebold–Mariano test on the loss differential is
@@ -831,7 +862,7 @@ what would you say about the other?
 """)
 
 md(r"""
-### 6.3 How much do the models actually disagree?
+### 6.4 How much do the models actually disagree?
 
 Different names, different vendors, different training corpora. That does not make them
 independent forecasts. The daily spread is the quantity that tells you whether averaging
@@ -880,7 +911,7 @@ other? How would you tell the two cases apart from the numbers alone?
 """)
 
 md(r"""
-### 6.4 Your group's asset
+### 6.5 Your group's asset
 
 Everything so far ran on the asset in `ASSET`. The lecture's headline came from the
 S&P 500, and the question is whether it survives a different market.

@@ -1339,6 +1339,37 @@ def fig_vs_garch():
             "vs_garch_llm_ahead_significantly": int(((r["p"] < 0.05) &
                                                      (r["diff"] < 0)).sum())}
 
+def fig_allvar(bench, models):
+    """Every scored forecast on one axis, so the spread is seen before it is measured.
+
+    Ten lines is deliberately a lot. The point is that they answer the same question on
+    the same days and do not agree, and that the disagreement is not noise around a
+    common level: the open-weights runs sit an order of magnitude closer to zero, which
+    is why they breach seven times too often.
+    """
+    keys = [k for k in ("HS", "GARCH-t", "NN-t", "Chronos-T5", "LLM-series",
+                        "LLM-series+state", "LLM-dated", "LLM-dated+news",
+                        "Open-1.5B", "LLMTime-1.5B") if k in models]
+    fig, ax = plt.subplots(figsize=FIG_WIDE)
+    ax.plot(bench.index, bench["ret"], lw=0.5, color=RETURNS, alpha=0.55,
+            label="Realised return", zorder=1)
+    for k in keys:
+        v = models[k].dropna()
+        ax.plot(v.index, -v.values, lw=1.2, color=MODEL_COLORS.get(k, GREY),
+                label=line_label(k), zorder=2)
+    ax.set_ylabel("Return and\n$-$VaR$(1\\%)$, %")
+    n = len(keys)
+    ax.set_title(f"{ASSETS[ASSET]['label']}: {n} answers to one question, "
+                 f"{len(bench)} days", fontsize=11)
+    datefmt(ax)
+    fig_legend(fig, ax, ncol=4, fontsize=8.6)
+    save(fig, "s_allvar")
+
+    lo = min(float(models[k].dropna().mean()) for k in keys)
+    hi = max(float(models[k].dropna().mean()) for k in keys)
+    return {"allvar_models": len(keys), "allvar_mean_lowest": round(lo, 2),
+            "allvar_mean_highest": round(hi, 2)}
+
 def fig_hs(rets, bench):
     """Historical simulation, drawn: sort the window, read off the quantile.
 
@@ -1743,6 +1774,7 @@ def main():
     # fig_clamp is not called: Chronos-Bolt was dropped from the deck. The generator
     # is kept so the capability audit can be rerun if it returns.
     facts.update(fig_thresholds(bench, models))
+    facts.update(fig_allvar(bench, models))
     facts.update(fig_backtest(bench, models))
     facts.update(fig_disagreement(models))
     facts.update(fig_llm(bench, models))

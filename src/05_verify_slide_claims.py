@@ -740,6 +740,12 @@ def main():
     check("rejections for too many breaches", _many, 15)
     check("rejections for too few", _few, 3)
 
+    _fa = pd.read_csv(PRECOMP / f"slide_facts_{ASSET}.csv").set_index("fact")["value"]
+    if "allvar_models" in _fa.index:
+        check("forecasts drawn on one axis", int(_fa["allvar_models"]), 9)
+        check("lowest mean threshold", round(float(_fa["allvar_mean_lowest"]), 2), 1.35)
+        check("highest mean threshold", round(float(_fa["allvar_mean_highest"]), 2), 3.69)
+
     print(f"\n{len(PASSED)} claims verified, {len(FAILED)} failed")
     print("\nNOT machine-checked, inherited from the certified aida-risk run and "
           "attributed on the slide:")

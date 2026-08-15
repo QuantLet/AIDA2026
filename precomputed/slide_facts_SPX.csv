@@ -4,6 +4,9 @@ detect_power_50,8.4
 detect_expected_500,2.0
 detect_power_5541,1.45
 detect_expected_5541,1.3
+allvar_models,9
+allvar_mean_lowest,1.35
+allvar_mean_highest,3.69
 best_model,NN-t
 best_pinball,0.02687348205479806
 n_reject_cc,1

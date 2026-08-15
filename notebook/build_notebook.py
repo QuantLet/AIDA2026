@@ -389,9 +389,14 @@ Four information sets are shipped, for every asset:
 | `dated` | the same returns, plus the asset name and the date |
 | `dated+news` | the same, plus the real headlines available at $t-1$ (section 5) |
 
-**Why two of them are anonymised.** The model's training data covers these dates. Tell
-it "S&P 500, 5 August 2024" and a good forecast may be recall rather than inference,
-and recall is not available for tomorrow. The `dated` configuration exists to *measure*
+In every table and figure below they carry an `LLM-` prefix, so `series` appears as
+`LLM-series`. All four are the same weights, Claude Haiku 4.5, asked four different
+ways; only the prompt changes.
+
+**Why two of them are anonymised.** The weights were trained on text that already
+covers 2023 and 2024. Given "S&P 500, 5 August 2024", the model can remember what
+happened instead of forecasting it, and a real forecast has no such memory to draw on,
+so a score won that way would not survive live use. The `dated` configuration exists to *measure*
 that effect — and to serve as the control for the news test in section 5.
 
 **The headlines are real.** They come from EODHD, not from anyone's imagination: a

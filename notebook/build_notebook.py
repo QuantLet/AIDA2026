@@ -302,6 +302,36 @@ else:
 """)
 
 code(r"""
+# Everything the live cell below needs. Deliberately unpinned: Colab ships its own torch
+# and forcing the local pin on top of it is how a laboratory breaks. The version that
+# actually resolves is printed, and the result is a property of THAT build.
+!pip install -q chronos-forecasting
+
+# No token is needed here; this stops Colab asking for one. If it asks anyway: Cancel.
+try:
+    from huggingface_hub.utils import _auth
+    _auth._IS_GOOGLE_COLAB_CHECKED = True
+    _auth._GOOGLE_COLAB_SECRET = None
+except Exception:
+    pass
+""")
+
+code(r"""
+import torch, warnings
+import chronos, transformers
+from chronos import BaseChronosPipeline
+
+print(f"chronos-forecasting {chronos.__version__} | transformers "
+      f"{transformers.__version__} | torch {torch.__version__}")
+
+# The context the model reads, and where each forecast date sits in the price series.
+px  = returns["close"].values.astype(float)
+pos = {d: i for i, d in enumerate(returns.index)}
+idx = np.array([pos[d] for d in bench.index])
+CTX = 512
+""")
+
+code(r"""
 N_LIVE, N_SAMPLES = 12, 500      # ~9 s per date on a Colab CPU; raise if you have time
 
 BATCH = 1                        # larger batches exhaust a free Colab runtime's RAM

@@ -132,14 +132,13 @@ computed in `src/05_verify_slide_claims.py` and plotted in `figures/slides/s_pow
 | `HS` | Historical simulation, 1000-day window | neither |
 | `GARCH-t` | GARCH(1,1), Student-t innovations | scale, parametrically |
 | `NN-t` | Neural volatility + parametric t tail | the scale only |
-| `Chronos-Bolt` | Chronos-Bolt-tiny, zero-shot, quantile head | the whole predictive law |
 | `Chronos-T5` | Chronos-T5-mini, zero-shot, 500 sampled paths | the whole predictive law |
 | `LLM-series` | Serialised return history, prompted | the whole predictive law |
 | `LLM-series+state` | The same plus volatility, drawdown, HS VaR | the whole predictive law |
 | `LLM-dated` | The same plus the asset name and the date | the whole predictive law |
 | `LLM-dated+news` | The same plus real headlines available at t-1 | the whole predictive law |
 | `Open-1.5B` | Qwen2.5-1.5B-Instruct, open weights, same prompt | the whole predictive law |
-| `Open-3B` | Qwen2.5-3B-Instruct — the degenerate exhibit | nothing; it is constant |
+| `Open-3B` | Qwen2.5-3B-Instruct, open weights, same prompt | the whole predictive law |
 
 All seven model families are precomputed for all five assets.
 
@@ -287,15 +286,17 @@ the exercise.
 
 This section exists so the package's failures are as easy to find as its results.
 
-**Chronos-Bolt cannot produce a 5% quantile.** Verified 2026-07-31 with
-chronos-forecasting 2.2.2: it was trained on the grid 0.1, 0.2, ..., 0.9, and any request
-below 0.1 is clamped to the value at 0.1. On **100% of the 500 test days** the 1%, 5% and
-10% outputs are bit-identical. The library emits a warning and returns successfully. A
-pipeline that requested `quantile_levels=[0.05]` would have produced a complete set of
-results silently reporting the 10% quantile. Chronos-Bolt is therefore reported at 10%,
-its lowest unclamped level, and the genuine 5% quantile comes from the Chronos-T5 sampling
-head. The clamp is not repaired anywhere: `src/02_chronos_lab.py` records a `clamped`
-flag per row and the notebook puts it on screen.
+**Chronos-Bolt is excluded, because it cannot produce a 5% quantile.** Verified
+2026-07-31 with chronos-forecasting 2.2.2: it was trained on the grid 0.1, 0.2, ..., 0.9,
+and any request below 0.1 returns the value at 0.1. On **100% of the 500 test days** the
+1%, 5% and 10% outputs are bit-identical, while the library emits a warning and returns
+successfully. A pipeline requesting `quantile_levels=[0.05]` would produce a complete set
+of results reporting the 10% quantile under a 5% label. Since the course is scored at 1%,
+a model whose lowest usable level is 10% has no comparable number to contribute, and it
+is scored nowhere in the deck or the laboratory. The measurement itself is kept:
+`src/02_chronos_lab.py` still has the `bolt` path, records a `clamped` flag per row, and
+its output stays in `precomputed/chronos_bolt_*.csv`. The 1% quantile in this course
+comes from the Chronos-T5 sampling head.
 
 **Sampling floor.** Chronos-T5 uses 500 sample paths, which puts about 25 draws below the
 5% quantile and 5 below the 1%. The library default of 20 samples cannot express a 5%
@@ -378,11 +379,11 @@ lab with it. If the data is published to a public URL, set `AIDA_DATA_URL` inste
 neither, the loaders fall back to a live yfinance download and say so; that path will not
 match the precomputed files.
 
-**Every asset carries a complete set** — Chronos-Bolt, Chronos-T5, aligned headlines and
-all four LLM configurations — so no group opens the notebook with an empty column. The
+**Every asset carries a complete set** — Chronos-T5, aligned headlines and all four LLM
+configurations — so every group opens the notebook with a full panel. The
 bundle was tested by unpacking it into an empty directory with `ANTHROPIC_API_KEY`,
 `OPENAI_API_KEY` and `EODHD_API_KEY` unset, loading all five assets and asserting that
-each resolves to all eight models. The only live model call in the lab is a 40-day Chronos-T5 reproduction that
+each resolves to every scored model. The only live model call in the lab is a 40-day Chronos-T5 reproduction that
 takes about two minutes on a Colab CPU.
 
 ## Layout

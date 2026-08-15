@@ -23,10 +23,10 @@ RUN_LLM=0
 echo "== 01  lab dataset from the certified run"
 $PY src/01_lab_data.py
 
-echo "== 02a Chronos-Bolt, all assets (seconds)"
-$CHRONOS_PY src/02_chronos_lab.py bolt $ASSETS 2>&1 | grep -viE "deprecated|quantiles to be"
-
-echo "== 02b Chronos-T5 sampling, SPX and BTC (~10 min each, resumable)"
+# Chronos-Bolt is measured but scored nowhere: its lowest usable level is 10%, which
+# has no comparable number at the 1% this course is scored at. Run it with
+#   $CHRONOS_PY src/02_chronos_lab.py bolt $ASSETS
+echo "== 02  Chronos-T5 sampling, SPX and BTC (~10 min each, resumable)"
 $CHRONOS_PY src/02_chronos_lab.py t5 SPX BTC 2>&1 | grep -viE "deprecated|quantiles to be"
 
 if [[ $RUN_LLM -eq 1 ]]; then

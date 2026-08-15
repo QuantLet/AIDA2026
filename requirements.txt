@@ -25,7 +25,7 @@ requests==2.32.5
 torch==2.13.0
 
 # The three stages that are NOT in this file, because they need a different environment:
-#   02  Chronos-Bolt / Chronos-T5      -> requirements-chronos.txt
+#   02  Chronos-T5 sampling             -> requirements-chronos.txt
 #   07  open-weights Qwen, elicited    -> requirements-openweights.txt
 #   09  LLMTime sampling               -> requirements-openweights.txt
 #   03  commercial LLM (Anthropic)     -> requirements-openweights.txt

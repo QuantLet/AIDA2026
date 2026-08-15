@@ -13,8 +13,11 @@
 #
 # MODEL ARTEFACTS, which matter as much as the package versions and are named on the
 # slides for that reason:
-#   amazon/chronos-bolt-tiny   quantile head, trained grid 0.1, 0.2, ..., 0.9
 #   amazon/chronos-t5-mini     sampling head, 500 paths (2000 for the rerun comparison)
+#
+# amazon/chronos-bolt-tiny is reachable from the same environment and src/02_chronos_lab.py
+# still has the `bolt` path, but it is scored nowhere: its trained grid starts at 0.1, so
+# it has no number to contribute at the 1% this course reports.
 #
 chronos-forecasting==2.2.2
 transformers==4.57.6

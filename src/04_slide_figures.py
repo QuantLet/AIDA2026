@@ -116,7 +116,6 @@ AXIS_LABELS = {
     "HS": "HS",
     "GARCH-t": "GARCH-$t$",
     "NN-t": "NN-$t$",
-    "Chronos-Bolt": "Chronos-Bolt",
     "Chronos-T5": "Chronos-T5",
     "LLM-series": "Returns",
     "LLM-series+state": "$+$ stats",
@@ -280,9 +279,6 @@ def load():
 
     models = {m: bench[m] for m in ("HS", "GARCH-t", "NN-t") if m in bench}
 
-    bolt = pd.read_csv(PRECOMP / f"chronos_bolt_{ASSET}.csv", parse_dates=["date"]) \
-        if (PRECOMP / f"chronos_bolt_{ASSET}.csv").exists() else None
-
     p = PRECOMP / f"chronos_t5_{ASSET}.csv"
     if p.exists():
         t5 = pd.read_csv(p, parse_dates=["date"])
@@ -303,7 +299,7 @@ def load():
         if f:
             d = pd.read_csv(f, parse_dates=["date"]).set_index("date")
             models[f"Open-{size}"] = d.loc[_usable(d), "var"]
-    return rets, bench, models, bolt
+    return rets, bench, models
 
 
 def _local_run(slug):
@@ -406,69 +402,6 @@ def fig_power(bench):
             "detect_expected_500": round(100 * ex[i500], 2),
             "detect_power_5541": round(100 * _detectable_power(5541), 2),
             "detect_expected_5541": round(100 * _detectable_expected(5541), 2)}
-
-
-def fig_clamp(bolt, bench):
-    """The clamp, shown as the finding rather than asserted.
-
-    Three coincident lines are indistinguishable from one line, and three bars at 100%
-    are one number drawn three times: the previous version of this figure could not
-    show what it claimed. What separates a working quantile head from a clamped one is
-    the SPREAD between requested levels, so that is what is drawn -- positive and moving
-    for GARCH-t, exactly zero every day for Chronos-Bolt.
-
-    The right panel gives the consequence a desk would actually meet: take the number
-    returned for 1% and score it, and the realised breach rate is what it is.
-    """
-    if bolt is None:
-        print("  skip s_clamp: no bolt file")
-        return {}
-    piv = bolt.pivot_table(index="date", columns="level", values="var")
-    gar = bench.pivot_table(index="date", columns="level", values="var") \
-        if "level" in getattr(bench, "columns", []) else None
-
-    fig, (a1, a2) = plt.subplots(1, 2, figsize=FIG_TWO,
-                                 gridspec_kw={"width_ratios": [1.45, 1]})
-
-    # --- left: the gap between the levels you asked for ---------------------------
-    ref = pd.read_csv(LAB / f"bench_{ASSET}.csv", parse_dates=["date"])
-    ref = ref[ref["model"] == "GARCH-t"].pivot_table(index="date", columns="level",
-                                                     values="var")
-    common = piv.index.intersection(ref.index)
-    a1.plot(common, (ref.loc[common, 0.01] - ref.loc[common, 0.10]).values,
-            color=MODEL_COLORS["GARCH-t"], lw=1.6,
-            label=r"GARCH-$t$: a real quantile head")
-    a1.plot(common, (piv.loc[common, 0.01] - piv.loc[common, 0.10]).values,
-            color=al.IDA_RED, lw=2.2, label="Chronos-Bolt")
-    a1.axhline(0, color=RETURNS, lw=1)
-    a1.set_ylabel(r"VaR$(1\%)$ $-$ VaR$(10\%)$")
-    a1.set_title("The gap between the levels you asked for", fontsize=13)
-    datefmt(a1)
-
-    # --- right: what you get if you take the number -------------------------------
-    r = pd.read_csv(LAB / f"bench_{ASSET}.csv", parse_dates=["date"])
-    r = r[np.isclose(r["level"], ALPHA)].groupby("date")["ret"].first()
-    idx = piv.index.intersection(r.index)
-    rate = 100 * float((r.reindex(idx).values < -piv.loc[idx, ALPHA].values).mean())
-    a2.bar(["asked for", "got"], [100 * ALPHA, rate], width=0.55,
-           color=[MODEL_COLORS["GARCH-t"], al.IDA_RED])
-    for i, v in enumerate([100 * ALPHA, rate]):
-        a2.text(i, v + 0.2, f"{v:.1f}%", ha="center", fontsize=9.4)
-    a2.set_ylim(0, rate * 1.3)
-    a2.set_ylabel("Breach rate (%)")
-    a2.set_title("Take the number and score it", fontsize=13)
-    a2.grid(axis="x", visible=False)
-
-    fig_legend(fig, a1, ncol=2)
-    save(fig, "s_clamp")
-
-    share = [float(np.isclose(piv[x], piv[0.10], rtol=0, atol=0).mean())
-             for x in (0.01, 0.05, 0.10)]
-    return {"clamp_share_05": share[1], "n_dates": len(piv),
-            "clamp_gap_max": round(float((piv[0.01] - piv[0.10]).abs().max()), 6),
-            "clamp_ref_gap_mean": round(
-                float((ref.loc[common, 0.01] - ref.loc[common, 0.10]).mean()), 3),
-            "clamp_realised_rate": round(rate, 1)}
 
 
 def fig_thresholds(bench, models):
@@ -1766,13 +1699,11 @@ def fig_floor():
             "t5_rerun_n_01": int(len(d))}
 
 def main():
-    rets, bench, models, bolt = load()
+    rets, bench, models = load()
     print(f"{ASSET}: {len(bench)} test days, models {sorted(models)}")
 
     facts = {}
     facts.update(fig_power(bench))
-    # fig_clamp is not called: Chronos-Bolt was dropped from the deck. The generator
-    # is kept so the capability audit can be rerun if it returns.
     facts.update(fig_thresholds(bench, models))
     facts.update(fig_allvar(bench, models))
     facts.update(fig_backtest(bench, models))

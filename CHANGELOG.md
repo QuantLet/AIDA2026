@@ -1,5 +1,44 @@
 # Changelog
 
+## 2026-08-15 — register pass and Chronos-Bolt removal
+
+**No empirical result changed.** Every number in the deck still verifies.
+
+### Chronos-Bolt is gone from everything the reader sees
+
+Bolt was the original spine of the session: asked for a 1% quantile it returns the 10%
+one, silently. Since the course is scored at 1%, a model whose lowest usable level is 10%
+has no comparable number to contribute, so it was dropped from the scored panel. This
+revision finishes the removal, which had been left half-done:
+
+- the artefact list in the appendix, the README model table and its excluded-specification
+  section, the course outline, `run_all.sh` stage 02a, and the `Chronos-Bolt` entries in
+  `labcommon.py` and `aidalab.py`
+- `fig_clamp` and the bolt loading in `src/04_slide_figures.py`, with `figures/slides/s_clamp.*`
+- the measurement itself is kept: `src/02_chronos_lab.py` still has the `bolt` path and
+  `precomputed/chronos_bolt_*.csv` stays, because it is the evidence for the exclusion
+
+### Language
+
+- every appositive negation ("X, not Y") replaced by the positive claim, in the deck, the
+  notebook and the figure captions; `src/06_lint_slides.py` now flags the construction
+- 22 negative formulations in the deck, 16 in the notebook and 5 baked into figures
+  rewritten positively where a positive phrasing carried the same information
+- a broken caption on the Qwen architecture frame ("General Large language Model")
+  replaced; the duplicate Colab badge cell removed from the notebook
+
+### Content
+
+- **NN-t added to the routes table**, which listed six ways to produce a quantile and
+  omitted a model scored in every table. Now seven, and the two LLM rows name their models
+- the README claim that Qwen2.5-3B is "constant" corrected: it carries 8% distinct values
+
+### Quantlets
+
+Each folder now ships a notebook that displays what the stage produced, the slide figures
+whose frames carry its mark, and its output files under `output/`. The figure list is
+derived from the deck rather than declared, so a figure that moves follows its Quantlet.
+
 ## 2026-08-04 — teachability revision
 
 The course was scientifically complete but too dense for the time available. This

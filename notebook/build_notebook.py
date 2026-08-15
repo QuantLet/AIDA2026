@@ -93,10 +93,11 @@ locally, and no API key is required at any point.*
 md(r"""
 ### How long the laboratory takes
 
-Sections 1 to 3 were **measured on Colab** on 2026-08-06. The rest are measured on one
-CPU (Apple M5 Max) and multiplied by four, which is roughly how much slower a free
-two-vCPU Colab runtime is on this kind of work. Colab caches nothing between sessions,
-so budget the downloads every time.
+The model downloads were **measured on Colab** on 2026-08-06. Everything else was timed
+here and multiplied by four, which is roughly how much slower a free two-vCPU Colab
+runtime is on this kind of work: every cell that touches no model runs in **under two
+seconds in total**, so the clock is downloads and your own thinking, nothing else. Colab
+caches nothing between sessions, so budget the downloads every time.
 
 | section | compute | of which download |
 |---|---|---|
@@ -107,9 +108,10 @@ so budget the downloads every time.
 | 4. LLM parsing and logical checks | seconds | shipped as data |
 | 5. Dated versus dated+news | seconds | shipped as data |
 | 5.1 Open weights live, 16 dates | **~11 min** on CPU, ~1 min on a T4 | 3.1 GB, `Qwen2.5-1.5B` |
-| 6. Coverage, loss and disagreement | seconds | — |
+| 6. Coverage, loss and disagreement, and the three exercises | seconds | — |
+| 6.4 Your group's asset, rerun end to end | seconds | — |
 
-**Compute is about 18 minutes of the two hours**, and 11 of those are the optional live
+**Compute is about 14 minutes of the two hours**, and 11 of those are the optional live
 open-weights cell. The rest of the time is yours: three functions to write in sections 2
 and 6.1, your group's own market in 6.4, and the five questions at the end. Budget
 roughly 40 minutes for those, and the remainder for arguing about what the numbers mean,

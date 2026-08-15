@@ -51,6 +51,11 @@ md(r"""
 
 **AIDA Summer School 2026 — coding laboratory (2 hours)**
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/QuantLet/AIDA2026/blob/main/notebook/AIDA_Risk_Lab.ipynb)
+
+Click the badge. Colab loads this file alone, and the first code cell clones the
+rest of the course into the runtime. Nothing to install, and no key at any point.
+
 One question, four kinds of answer.
 
 $$\Pr\left(r_{t} < -\widehat{\mathrm{VaR}}_{t}(\alpha)\right) = \alpha ,

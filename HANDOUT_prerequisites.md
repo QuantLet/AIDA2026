@@ -59,8 +59,10 @@ single fact is why the course separates three questions that are usually run tog
 
 ## What you need for the laboratory
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/QuantLet/AIDA2026/blob/main/notebook/AIDA_Risk_Lab.ipynb)
+
 A laptop, a browser and a Google account. The notebook runs in **Google Colab** — open
-it from the badge at the top of `notebook/AIDA_Risk_Lab.ipynb` — so there is **nothing
+it with the badge below — so there is **nothing
 to install**, and **no API key is needed at any point**. The language-model forecasts
 and the aligned headlines ship as data.
 

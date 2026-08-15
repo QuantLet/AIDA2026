@@ -3,6 +3,8 @@
 Lecture deck and coding laboratory for the four-hour August session of the AIDA Summer
 School 2026. Two hours of lecture, two hours in one notebook.
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/QuantLet/AIDA2026/blob/main/notebook/AIDA_Risk_Lab.ipynb)
+
 **Reported level: alpha = 1%.** The 5% column is carried alongside because the language
 model returns both quantiles in one reply, but every headline number is the 1% tail.
 

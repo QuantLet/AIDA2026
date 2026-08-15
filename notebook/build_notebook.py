@@ -782,7 +782,7 @@ you should write them rather than take them on trust.
 
 **The distinct-value count.** A forecast that repeats yesterday's number is not thereby
 invalid: historical simulation repeats more than any language model here, for a reason
-you can write down. The count is a question to ask, not a verdict to pass.
+you can write down. The count tells you which forecasts to go and look at.
 
 **The Kupiec statistic.** You have used its verdict all afternoon. Write the likelihood
 ratio once, so the power argument is about an expression you have seen.

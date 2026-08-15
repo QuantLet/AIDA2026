@@ -29,6 +29,7 @@ BANNED = [
     (r"\bwell[- ]formed\b", "name the checks instead"),
     (r"\binformative\b", "say what the number does"),
     (r"\bnot a\b.*\bbut\b", "appositive negation"),
+    (r",\s+not\s+[a-z]", "appositive negation; state the positive claim"),
     (r"\bnever one\b", "state it positively"),
     (r"\bsimplification of the published\b", "state the difference, not a grade"),
     (r"\bas run here\b", "name the file"),

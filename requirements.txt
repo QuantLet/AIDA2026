@@ -1,0 +1,33 @@
+# AIDA Summer School 2026 -- August course. CORE environment.
+#
+# This is the environment that turns the shipped data into the deck: every figure in
+# figures/slides/, every fragment in tables/, and all 105 checks in
+# src/05_verify_slide_claims.py. It needs no model weights, no GPU and no API key, so
+# a reviewer can reproduce the deck end to end from precomputed/ and data/ alone.
+#
+# It is `PY` in run_all.sh, and it runs stages 01, 04, 04b, 05 and 06.
+#
+# Versions are those of the interpreter that produced the committed figures and tables,
+# read from the running environment rather than assumed. Regenerating under other
+# versions may reproduce the numbers; it has not been checked.
+#
+#   python 3.13.9, macOS 26.6.1, Apple M5 Max (arm64), CPU only, no CUDA
+#
+numpy==2.3.5
+pandas==2.3.3
+scipy==1.16.3
+matplotlib==3.10.6
+statsmodels==0.14.5
+requests==2.32.5
+
+# torch is imported by notebook/aidalab.py at module scope, so the core stages need it
+# on the path even though none of them trains anything.
+torch==2.13.0
+
+# The three stages that are NOT in this file, because they need a different environment:
+#   02  Chronos-Bolt / Chronos-T5      -> requirements-chronos.txt
+#   07  open-weights Qwen, elicited    -> requirements-openweights.txt
+#   09  LLMTime sampling               -> requirements-openweights.txt
+#   03  commercial LLM (Anthropic)     -> requirements-openweights.txt
+# Their outputs are committed under precomputed/, which is why the core environment
+# reproduces the deck without them.

@@ -66,7 +66,6 @@ Every model in this notebook sees the same information and is scored on the same
 | **Historical simulation** | sort the last 250 days, read off the 3rd worst |
 | **GARCH(1,1)-$t$** | a variance recursion, scaled by a Student-$t$ quantile |
 | **NN vol + $t$** | a small network learns the scale, the tail shape stays parametric |
-| **Chronos-Bolt** | a pretrained time-series model with a quantile head, zero-shot |
 | **Chronos-T5** | the same family, but it samples paths, so any quantile can be read |
 | **LLM** | the return series written out as text, the quantile asked for in words |
 
@@ -99,7 +98,6 @@ so budget the downloads every time.
 | 1. Setup and reproducibility checks | ~10 s | ~20 MB, the repository |
 | 1.1 Power | seconds | — |
 | 2. Historical simulation | seconds | — |
-| 3. Chronos-Bolt capability audit | ~1.5 min | ~35 MB, `chronos-bolt-tiny` |
 | 4. Chronos-T5 sampling resolution, 12 dates x 500 paths | ~2 min | ~80 MB, `chronos-t5-mini` |
 | 5. LLM parsing and logical checks | seconds | shipped as data |
 | 6. Dated versus dated+news | seconds | shipped as data |
@@ -165,6 +163,15 @@ bench   = al.load_benchmarks(ASSET, level=ALPHA)
 print(f"{ASSET}: {len(returns)} daily observations, "
       f"{returns.index[0].date()} to {returns.index[-1].date()}")
 print(f"test span: {bench.index[0].date()} to {bench.index[-1].date()}, {len(bench)} days")
+
+# What you are actually running on. A foundation-model result belongs to an artefact
+# and an interface, which is the argument of the whole session -- so record the
+# interface. Quote these lines if a number here disagrees with the lecture.
+import numpy, scipy, matplotlib
+print(f"{chr(10)}python {sys.version.split()[0]} | colab {IN_COLAB}")
+for _m in (numpy, pd, scipy, matplotlib):
+    print(f"  {_m.__name__:<12} {_m.__version__}")
+
 bench.head()
 """)
 
@@ -178,9 +185,9 @@ and the answer for our span is sobering: it detects a *doubling* of the breach r
 nothing finer.
 
 This is the binding constraint of the whole laboratory and it is not hidden anywhere in
-the results. Read every verdict in section 7 through it: a model that "passes" at 1% on
+the results. Read every verdict in section 6 through it: a model that "passes" at 1% on
 500 days has cleared a low bar, and the classical models are also shown on the certified
-5541-day run at the end of section 7, where the bar is much higher.
+5541-day run at the end of section 6, where the bar is much higher.
 """, "required", mins="seconds")
 
 code(r"""
@@ -263,121 +270,7 @@ window sit so far out in 2023?
 """)
 
 md(r"""
-## 3. Chronos-Bolt: a capability audit
-
-Chronos is pretrained on a large corpus of time series and applied here with **no
-fitting on this asset at all**. Two heads, and the difference between them is the
-lesson of this section.
-
-- **Chronos-Bolt** has a *quantile head*: it outputs a fixed grid of quantiles directly.
-  Small and fast enough to run live.
-- **Chronos-T5** *samples paths*: any quantile can be read off the sample distribution.
-
-**It is fed prices, not returns.** Chronos is trained on series levels. Given the last
-512 closing prices it forecasts the next one, and the implied return is recovered as
-$r = 100\log(\hat P_t / P_{t-1})$, a monotone transform, so a price quantile maps to
-the return quantile of the same level. Feeding it the return series directly was tried
-in the certified pipeline: returns are near-zero-mean noise and the model collapses to
-a predictive standard deviation of 0.14 against a realised 1.22.
-""", "required", mins="1.5 minutes")
-
-code(r"""
-!pip install -q chronos-forecasting
-
-# No token is needed here; this stops Colab asking for one. If it asks anyway: Cancel.
-try:
-    from huggingface_hub.utils import _auth
-    _auth._IS_GOOGLE_COLAB_CHECKED = True
-    _auth._GOOGLE_COLAB_SECRET = None
-except Exception:
-    pass
-""")
-
-code(r"""
-import torch, warnings
-from chronos import BaseChronosPipeline
-
-px    = returns["close"].values.astype(float)
-pos   = {d: i for i, d in enumerate(returns.index)}
-idx   = np.array([pos[d] for d in bench.index])
-CTX   = 512
-
-bolt = BaseChronosPipeline.from_pretrained(
-    "amazon/chronos-bolt-tiny", device_map="cpu", dtype=torch.float32)
-
-# Ask for the levels we actually care about.
-LEVELS = [0.01, 0.05, 0.10, 0.50, 0.90]
-ctx = torch.tensor(np.stack([px[t - CTX:t] for t in idx[:64]]), dtype=torch.float32)
-with torch.no_grad():
-    q, _ = bolt.predict_quantiles(ctx, prediction_length=1, quantile_levels=LEVELS)
-
-print("price quantiles for the first forecast date:")
-for lvl, v in zip(LEVELS, q[0, 0].numpy()):
-    print(f"  q{lvl:<5} = {v:.4f}")
-""")
-
-md(r"""
-**Look at the warning, and look at the numbers.**
-
-Chronos-Bolt was trained on the quantile grid $0.1, 0.2, \dots, 0.9$. Asked for 0.01 it
-does not extrapolate: it returns the value at the lowest level it was trained on. The
-1%, 5% and 10% entries above are the same number.
-
-At our reported level this is a **factor-of-ten** substitution. A "1% VaR" that is
-silently the 10% quantile will be breached roughly ten times as often as it claims, and
-the pipeline that produced it raised no error at any point.
-
-Verify it rather than taking it on trust.
-""")
-
-code(r"""
-qq = q[:, 0, :].numpy()
-i01, i05, i10 = LEVELS.index(0.01), LEVELS.index(0.05), LEVELS.index(0.10)
-same = np.isclose(qq[:, i01], qq[:, i10], rtol=0, atol=0) & \
-       np.isclose(qq[:, i05], qq[:, i10], rtol=0, atol=0)
-print(f"dates where q01 == q05 == q10 exactly: {same.sum()} of {len(same)}")
-""")
-
-md(r"""
-**This is the single most important cell in the notebook.**
-
-A pipeline that requested `quantile_levels=[0.01]`, took the number, and called it a 1%
-VaR would have produced a full set of results, a leaderboard position and a plot — all
-of them silently reporting the 10% quantile, a **factor of ten** away. Nothing would have failed. The backtest
-would have shown a suspiciously high breach rate and the natural reading would have been
-"the foundation model is badly calibrated in the tail", which is a claim about the model
-rather than about the pipeline.
-
-Two things follow, and they are the transferable part of this laboratory:
-
-1. **Ask a model what it can answer, not just what you want.** The trained quantile grid
-   is a property of the artefact, as much as its parameter count.
-2. **Check the output, not the call.** The call succeeded. Only the values reveal it.
-
-We therefore run Chronos-Bolt at its lowest unclamped level, 10%, and get the 1%
-quantile from the sampling head instead.
-""")
-
-code(r"""
-# Chronos-Bolt at 10%, the lowest level it was trained on, over the full test span.
-rows = []
-for i in range(0, len(idx), 64):
-    chunk = idx[i:i + 64]
-    ctx = torch.tensor(np.stack([px[t - CTX:t] for t in chunk]), dtype=torch.float32)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        with torch.no_grad():
-            qh, _ = bolt.predict_quantiles(ctx, prediction_length=1, quantile_levels=[0.10])
-    for j, t in enumerate(chunk):
-        r_q = 100.0 * np.log(max(float(qh[j, 0, 0]), 1e-8) / px[t - 1])
-        rows.append((bench.index[i + j], -r_q))
-
-bolt10 = pd.Series(dict(rows), name="Chronos-Bolt").rename_axis("date")
-print(f"Chronos-Bolt 10% VaR: mean {bolt10.mean():.2f}, {len(bolt10)} dates")
-""")
-
-md(r"""
-### 4. Chronos-T5: the sampling-resolution experiment
+## 3. Chronos-T5: the sampling-resolution experiment
 
 The sampling head draws `num_samples` price paths and the quantile is read off the
 sample distribution. The sample count sets the noise floor, and at our level it is the
@@ -439,7 +332,7 @@ a sampling model to three decimal places?
 """)
 
 md(r"""
-## 5. The LLM: output parsing and logical checks
+## 4. The LLM: output parsing and logical checks
 
 The method is the one in Pele et al. (2026), *In the Beginning was the Word: LLM-VaR
 and LLM-ES* (Expert Systems with Applications). The return series is written out as
@@ -506,7 +399,7 @@ if len(llm) == 2:
 """)
 
 md(r"""
-### 6. Dated versus dated+news: does real text move the number?
+## 5. Dated versus dated+news: does real text move the number?
 
 The two configurations above contain no words. This one does: real headlines from EODHD,
 attached to each forecast date under one rule.
@@ -629,7 +522,7 @@ you would use to separate the two.
 """)
 
 md(r"""
-### 6.1 The same experiment, with a model you run yourself
+### 5.1 The same experiment, with a model you run yourself
 
 Everything above came from a commercial endpoint. If you have a key, section 5 is
 reproducible; if you do not, it is a table someone else computed. So the same prompt is
@@ -694,12 +587,17 @@ N_OPEN = 16
 RUN_OPEN_LIVE = True
 
 if RUN_OPEN_LIVE:
+    # Unpinned for the same reason as the Chronos cell: Colab's own torch decides what
+    # fits. ../requirements-openweights.txt records the versions that produced the
+    # shipped panel (transformers 5.14.1, accelerate 1.14.0, torch 2.13.0 on mps).
     !pip install -q transformers accelerate
-    import torch
+    import torch, transformers, accelerate
     from transformers import AutoTokenizer, AutoModelForCausalLM
 
     MID = "Qwen/Qwen2.5-1.5B-Instruct"
     dev = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"transformers {transformers.__version__} | accelerate "
+          f"{accelerate.__version__} | torch {torch.__version__} | device {dev}")
     tok = AutoTokenizer.from_pretrained(MID, padding_side="left")
     tok.pad_token = tok.pad_token or tok.eos_token
     mod = AutoModelForCausalLM.from_pretrained(
@@ -756,7 +654,7 @@ endpoint you cannot inspect.
 """)
 
 md(r"""
-## 7. Coverage, pinball loss and disagreement
+## 6. Coverage, pinball loss and disagreement
 
 Three quantities, and they answer different questions.
 
@@ -785,7 +683,6 @@ models = {
     "HS-250":           hs250,
     "GARCH-t":          bench["GARCH-t"],
     "NN-t":             bench["NN-t"],
-    "Chronos-Bolt":     bolt10,      # NOTE: this is a 10% forecast, see below
     **({"Chronos-T5":   t5} if t5 is not None else {}),
     **llm,
 }
@@ -793,19 +690,6 @@ models = {
 bt = al.backtest_table(bench["ret"], models, alpha=ALPHA)
 lb = al.leaderboard(bt, alpha=ALPHA)
 lb.round(4)
-""")
-
-md(r"""
-**Chronos-Bolt is scored against the wrong nominal level on purpose.** Its number is a
-10% quantile; the table judges every column at 1%. It should look badly calibrated, and
-it is not a defect of the model: it is what happens when a forecast is used at a level
-the artefact cannot produce. Score it at its own level to see the difference.
-""")
-
-code(r"""
-bt10 = al.backtest_table(bench["ret"], {"Chronos-Bolt": bolt10}, alpha=0.10)
-print("Chronos-Bolt judged at its own 10% level:")
-print(bt10.round(4).to_string(index=False))
 """)
 
 code(r"""
@@ -816,7 +700,7 @@ plt.tight_layout(); plt.show()
 """)
 
 md(r"""
-### 7.1 Ranking against calibration: is the gap real?
+### 6.1 Ranking against calibration: is the gap real?
 
 A leaderboard is an ordering. Whether the gap between two rows is larger than sampling
 noise is a separate question, and the Diebold–Mariano test on the loss differential is
@@ -853,7 +737,7 @@ what would you say about the other?
 """)
 
 md(r"""
-### 7.2 How much do the models actually disagree?
+### 6.2 How much do the models actually disagree?
 
 Different names, different vendors, different training corpora. That does not make them
 independent forecasts. The daily spread is the quantity that tells you whether averaging
@@ -867,13 +751,11 @@ This is the idea behind SYNCRISK: correlated risk *assessments* are themselves a
 of systemic risk, because everyone de-risks on the same day.
 
 Measured over the nine forecasts of the primary comparison, so your numbers match the
-lecture slide exactly. Which set you measure is itself a modelling decision: adding
-Chronos-Bolt, which is a 10% forecast, would widen the band for a reason that has
-nothing to do with disagreement.
+lecture slide exactly. Which set you measure is itself a modelling decision.
 """, "optional", mins="seconds")
 
 code(r"""
-# The primary comparison, named rather than inherited: Chronos-Bolt is a 10% forecast
+# The primary comparison, named rather than inherited
 # and HS-250 duplicates a model already in the set.
 PRIMARY = ["HS", "GARCH-t", "NN-t", "Chronos-T5", "LLM-series", "LLM-series+state",
            "LLM-dated", "LLM-dated+news", "Open-1.5B"]
@@ -909,9 +791,9 @@ md(r"""
 Write two or three sentences for each. They are the questions the lecture was built
 around, and the ones the report from your group should answer.
 
-1. **Pipeline validity.** You asked Chronos-Bolt for the 1% quantile and the call
-   succeeded. What evidence did you use to decide whether the returned number *was*
-   the 1% quantile, and what would you have concluded without that check?
+1. **Pipeline validity.** Every model returned a number for every day and the calls
+   all succeeded. What evidence did you use to decide whether those numbers were the
+   1% quantile, and what would you have concluded without that check?
 
 2. **Ranking against calibration.** Order the models by pinball loss, then by their
    Kupiec verdict. Are the two orderings the same? Which question does each answer, and
@@ -931,13 +813,13 @@ around, and the ones the report from your group should answer.
 """, "interpret")
 
 md(r"""
-## 8. What to take away, and the optional extension
+## 7. What to take away, and the optional extension
 
 1. **A zero-shot foundation model produces a number for any question you ask it.**
    Whether that number answers the question you asked is a separate matter, and the
-   Chronos-Bolt clamp is the cheap version of a failure that is usually expensive.
-2. **An LLM can state a VaR, and the statement can be well or badly formed.**
-   Count the replies that do not parse and the replies that parse into a nonsense sign,
+   distinct-value count is the cheapest check that can tell you.
+2. **An LLM can state a VaR, and the reply can be malformed in several ways.**
+   Count the replies that do not parse, and those that parse into a nonsense sign,
    before reading anything into the ones that survive.
 3. **Ranking and validation are different operations.** The pinball loss orders models;
    the coverage and independence tests decide whether any of them may be used. A model

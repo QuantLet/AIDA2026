@@ -1,0 +1,35 @@
+# AIDA Summer School 2026 -- August course. OPEN-WEIGHTS and LLM environment.
+#
+# Regenerates the language-model panels under precomputed/:
+#   03  src/03_llm_lab.py     commercial LLM, four prompt configurations   (needs a key)
+#   07  src/07_local_llm.py   Qwen2.5 asked for the quantile in words      (no key)
+#   09  src/09_llmtime.py     Qwen2.5 sampled 1000x, LLMTime               (no key)
+#
+# This is `PY` in run_raised.sh, which defaults to ~/.venvs/aida-2026/bin/python; the
+# versions below are that interpreter's. The run logs in logs/ corroborate it: they were
+# written by cpython-3.12.13 on the `mps` device.
+#
+#   python 3.12.13, macOS 26.6.1, Apple M5 Max (arm64), device = mps, no CUDA
+#   logs/llmtime_*.log and logs/local_series_*.log carry the per-run timings.
+#
+# MODEL ARTEFACTS:
+#   Qwen/Qwen2.5-1.5B-Instruct    the leg students run; also 3B, 7B and 14B as the
+#   Qwen/Qwen2.5-{3,7,14}B-Instruct   size diagnostic, all in float16
+#   claude-haiku-4-5              the commercial leg, via the anthropic client
+#
+# ANTHROPIC_API_KEY is read from the environment and is needed ONLY by stage 03. The
+# laboratory and the deck both run without it.
+#
+torch==2.13.0
+transformers==5.14.1
+accelerate==1.14.0
+huggingface-hub==1.26.0
+tokenizers==0.22.2
+safetensors==0.8.0
+chronos-forecasting==2.3.1
+anthropic==0.120.2
+
+numpy==2.5.1
+pandas==3.0.5
+scipy==1.18.0
+matplotlib==3.11.1

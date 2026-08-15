@@ -16,7 +16,9 @@ Usage:  python src/05_verify_slide_claims.py [ASSET]
 Exit status is non-zero if any assertion fails.
 """
 
+import json
 import pathlib
+import re
 import runpy
 import sys
 from pathlib import Path
@@ -114,13 +116,6 @@ def main():
     check("test days", len(bench), 500)
     check("expected breaches", round(ALPHA * len(bench)), 5)
 
-    print("\n--- Chronos-Bolt quantile clamp ---")
-    bolt = pd.read_csv(PRECOMP / f"chronos_bolt_{ASSET}.csv", parse_dates=["date"])
-    piv = bolt.pivot_table(index="date", columns="level", values="var")
-    for lvl in (0.01, 0.05):
-        share = float(np.isclose(piv[lvl], piv[0.10], rtol=0, atol=0).mean())
-        check(f"days where q{lvl:.2f} equals q0.10 exactly", round(100 * share), 100)
-
     print("\n--- Kupiec power at 1% ---")
     check("80% power, 500 days (%)", round(100 * detectable_power(500), 2), 2.50, 0.01)
     check("80% power, 5541 days (%)", round(100 * detectable_power(5541), 2), 1.45, 0.01)
@@ -164,6 +159,134 @@ def main():
               sorted(bt.index[bt["p_uc"] < 0.05]),
               sorted(["Open-1.5B", "LLMTime-1.5B"][:n_rej]))
 
+    print("\n--- the opening slide: how often a doubly-wrong model passes ---")
+    def _kupiec_power(n, true, level=0.05):
+        x = np.arange(n + 1)
+        ph = np.where((x == 0) | (x == n), np.nan, x / n)
+        ll0 = (n - x) * np.log(1 - ALPHA) + x * np.log(ALPHA)
+        ll1 = np.where(np.isnan(ph), 0.0,
+                       (n - x) * np.log(1 - np.nan_to_num(ph, nan=0.5))
+                       + x * np.log(np.nan_to_num(ph, nan=0.5)))
+        rej = -2 * (ll0 - ll1) > stats.chi2.ppf(1 - level, 1)
+        return float(stats.binom.pmf(x, n, true)[rej].sum())
+    _pw = _kupiec_power(250, 2 * ALPHA)
+    check("a year of data, true rate 2x nominal: passes (%)",
+          round(100 * (1 - _pw)), 76, 1)
+
+    _rr = pd.read_csv(LAB / f"returns_{ASSET}.csv", index_col=0,
+                      parse_dates=True)["ret"].dropna()
+    for _W, _want in ((250, 21), (1000, 13)):
+        _v = _rr.rolling(_W).quantile(ALPHA).dropna().iloc[-500:]
+        check(f"HS distinct values over the span, W = {_W}",
+              int(_v.round(2).nunique()), _want)
+
+    print("\n--- quantile regression: the loss moves the line ---")
+    import statsmodels.api as _sm
+    _rq = pd.read_csv(LAB / f"returns_{ASSET}.csv", index_col=0,
+                      parse_dates=True)["ret"].dropna()
+    _d = pd.DataFrame({"y": _rq, "x": _rq.rolling(20).std().shift(1)}).dropna()
+    _X = _sm.add_constant(_d["x"])
+    check("squared-error slope on the volatility proxy",
+          round(float(_sm.OLS(_d["y"], _X).fit().params["x"]), 2), 0.01, 0.005)
+    check("pinball 1% slope",
+          round(float(_sm.QuantReg(_d["y"], _X).fit(q=ALPHA).params["x"]), 2), -1.94, 0.005)
+
+    print("\n--- GARCH: the standardised-t quantile ---")
+    from arch import arch_model as _am
+    _r2 = pd.read_csv(LAB / f"returns_{ASSET}.csv", index_col=0,
+                      parse_dates=True)["ret"].dropna()
+    _f = _am(_r2, vol="GARCH", p=1, q=1, dist="t").fit(disp="off")
+    _nu = float(_f.params["nu"])
+    _raw = float(stats.t.ppf(ALPHA, _nu))
+    _std = _raw * np.sqrt((_nu - 2) / _nu)
+    check("fitted nu", round(_nu, 1), 6.5, 0.05)
+    check("arch uses the unit-variance quantile",
+          round(float(_f.model.distribution.ppf(ALPHA, [_nu])), 3), round(_std, 3), 0.002)
+    check("raw t quantile is larger by (%)", round(100 * (_raw / _std - 1)), 20, 1)
+
+    print("\n--- dependence: levels against changes ---")
+    _prim = {k: v for k, v in models.items()
+             if k in ("HS", "GARCH-t", "NN-t", "Chronos-T5", "LLM-series",
+                      "LLM-series+state", "LLM-dated", "LLM-dated+news", "Open-1.5B")}
+    _w = pd.DataFrame({k: pd.Series(v).astype(float)
+                       for k, v in _prim.items()}).dropna()
+    for _lab, _X, _rho, _pc in (("levels", _w, 0.47, 0.53),
+                                ("changes", _w.diff().dropna(), 0.07, 0.20)):
+        _R = _X.corr()
+        _off = _R.values[np.triu_indices_from(_R.values, k=1)]
+        _l1 = float(np.linalg.eigvalsh(_R.values)[::-1][0] / len(_R))
+        check(f"median pairwise rho, {_lab}", round(float(np.median(_off)), 2), _rho, 0.005)
+        check(f"first eigenvalue share, {_lab}", round(_l1, 2), _pc, 0.005)
+    check("HS lag-1 autocorrelation, why levels mislead",
+          round(float(_w["HS"].autocorr(1)), 2), 1.0, 0.005)
+
+    print("\n--- coherence: the sub-additivity counterexample ---")
+    _p, _L = 0.008, 100.0
+
+    def _ve(states):
+        cum = acc = 0.0
+        var = None
+        for loss, pr in sorted(states, key=lambda x: -x[0]):
+            take = min(pr, ALPHA - cum)
+            if take > 0:
+                acc += take * loss
+                cum += take
+            if cum >= ALPHA - 1e-15 and var is None:
+                var = loss
+        return var, acc / ALPHA
+
+    _v1, _e1 = _ve([(_L, _p), (0.0, 1 - _p)])
+    _v2, _e2 = _ve([(2 * _L, _p ** 2), (_L, 2 * _p * (1 - _p)), (0.0, (1 - _p) ** 2)])
+    check("default probability sits below alpha", _p < ALPHA, True)
+    check("P(at least one of two defaults), %", round(100 * (1 - (1 - _p) ** 2), 2), 1.59,
+          0.005)
+    check("VaR of one bond", _v1, 0.0)
+    check("VaR of the merged book", _v2, 100.0)
+    check("VaR sub-additivity holds", bool(_v2 <= 2 * _v1), False)
+    check("ES of one bond", round(_e1, 2), 80.0, 0.005)
+    check("ES of the merged book", round(_e2, 2), 100.64, 0.005)
+    check("ES sub-additivity holds", bool(_e2 <= 2 * _e1), True)
+
+    print("\n--- the two classical mechanisms, as drawn ---")
+    _rr = pd.read_csv(LAB / f"returns_{ASSET}.csv", index_col=0,
+                      parse_dates=True)["ret"].dropna()
+    # HS: the frame says the estimate rests on three days of a 250-day window.
+    check("HS: order statistics below the 1% quantile at W = 250",
+          int(np.ceil(ALPHA * 250)), 3)
+    # And that it is a step function: few distinct values over 500 scored days.
+    _v250 = _rr.rolling(250).quantile(ALPHA).dropna().iloc[-500:]
+    check("HS: distinct VaR values over the test span, W = 250",
+          int(_v250.round(2).nunique()), 21)
+    # GARCH: the news impact curve is symmetric because the shock enters squared.
+    from arch import arch_model
+    _res = arch_model(_rr, vol="GARCH", p=1, q=1, dist="t").fit(disp="off")
+    _a1, _b1 = float(_res.params["alpha[1]"]), float(_res.params["beta[1]"])
+    check("GARCH: fitted alpha_1 on the slide", round(_a1, 3), 0.117, 0.0005)
+    check("GARCH: fitted beta_1", round(_b1, 3), 0.880, 0.0005)
+    _sig = lambda x: float(_res.params["omega"] + _a1 * x ** 2)
+    check("GARCH: -10% and +10% give the same next-day variance term",
+          round(_sig(-10) - _sig(10), 12), 0.0)
+
+    print("\n--- VaR and ES as objects, the definition figure ---")
+    # The unconditional VaR/ES pair is computed on the FULL sample, not the 500-day
+    # test span -- the test span gives -1.88 / -2.51. Both figures that use it say so.
+    _r = pd.read_csv(LAB / f"returns_{ASSET}.csv", index_col=0,
+                     parse_dates=True)["ret"].dropna().values
+    _q = float(np.quantile(_r, ALPHA))
+    _es = float(_r[_r <= _q].mean())
+    check("1% return quantile, full sample", round(_q, 2), -3.45, 0.005)
+    check("expected shortfall, mean of that tail", round(_es, 2), -5.01, 0.005)
+    check("full sample size behind that pair", len(_r), 6791)
+    # The right panel is constructed: two laws matched at the 1% quantile.
+    _zn, _nu = stats.norm.ppf(ALPHA), 3
+    _zt = stats.t.ppf(ALPHA, _nu)
+    _sn, _st = _q / _zn, _q / _zt
+    _esn = -_sn * stats.norm.pdf(_zn) / ALPHA
+    _est = -_st * (_nu + _zt ** 2) / (_nu - 1) * stats.t.pdf(_zt, _nu) / ALPHA
+    check("matched-VaR Gaussian ES", round(_esn, 2), -3.95, 0.005)
+    check("matched-VaR Student-t3 ES", round(_est, 2), -5.32, 0.005)
+    check("ES ratio at identical VaR", round(_est / _esn, 2), 1.35, 0.005)
+
     print("\n--- news effect, identified against the dated control ---")
     h = pd.read_csv(ROOT / "data" / "news" / f"headlines_{ASSET}.csv",
                     parse_dates=["date", "asof_utc", "published_utc"])
@@ -182,6 +305,11 @@ def main():
     check("DM p, news effect on covered dates", round(p_cov, 3), 0.009, 0.001)
     check("mean loss difference on covered dates", round(d_cov, 5), -0.00185, 0.00001)
     check("covered dates scored", n_cov, 447)
+    _q = pd.DataFrame({"c": (cov > 0).astype(int), "n": 1},
+                      index=bench.index).resample("QE").sum()
+    _sh = 100 * _q["c"] / _q["n"]
+    check("weakest quarter of news coverage (%)", round(float(_sh.min()), 1), 36.1, 0.05)
+    check("quarters covered at 90% or better", int((_sh >= 90).sum()), 7)
 
     print("\n--- news effect, all five assets ---")
     ba = PRECOMP / "lab_news_by_asset.csv"
@@ -190,6 +318,11 @@ def main():
         check("assets tested", len(r), 5)
         check("assets significant at 5%", int((r["p"] < 0.05).sum()), 2)
         check("smallest p across assets", round(float(r["p"].min()), 3), 0.001, 0.0005)
+        _bonf = 0.05 / len(r)
+        check("Bonferroni threshold for five markets", round(_bonf, 3), 0.01)
+        check("markets surviving Bonferroni", int((r["p"] < _bonf).sum()), 2)
+        check("the S&P is the marginal one", round(float(r.loc[r["asset"] == "SPX",
+              "p"].iloc[0]), 4) < _bonf, True)
 
     print("\n--- open weights against the commercial model ---")
     if "Open-1.5B" in models:
@@ -303,14 +436,24 @@ def main():
               round(float(r["rate"].min()), 1), 4.8, 0.05)
         check("highest breach rate across the ten runs (%)",
               round(float(r["rate"].max()), 1), 13.2, 0.05)
+        # The comparison is only controlled if both legs are scored on one day set.
+        nn = r.pivot(index="asset", columns="method", values="n_common")
+        check("both extractions scored on the same days",
+              int((nn["sampled"] == nn["elicited"]).sum()), 5)
+        check("SPX common valid dates", int(nn.loc["SPX", "sampled"]), 494)
+        check("BTC common valid dates", int(nn.loc["BTC", "sampled"]), 485)
+        check("days lost to inverted pairs, all assets",
+              int(r.drop_duplicates("asset")["n_dropped"].sum()), 21)
         d = r.pivot(index="asset", columns="method", values="distinct")
         check("SPX distinct, sampled (%)", round(float(d.loc["SPX", "sampled"]), 1),
-              15.8, 0.05)
+              16.0, 0.05)
         check("SPX distinct, elicited (%)", round(float(d.loc["SPX", "elicited"]), 1),
               9.5, 0.05)
         # The slide says the best of the ten delivered 24 breaches against 5 expected.
+        # The count is taken on that run's own common sample, not on a nominal 500.
+        lo = r.loc[r["rate"].idxmin()]
         check("fewest breaches across the ten runs",
-              int(round(r["rate"].min() * 500 / 100)), 24)
+              int(round(lo["rate"] * lo["n_common"] / 100)), 24)
     else:
         print("  sampling comparison not present")
 
@@ -385,11 +528,224 @@ def main():
         check(f"{a}: cutoff hour UTC", round(float(off.max()), 1),
               ns["AS_OF_HOURS"][a] % 24, 0.01)
 
+    # ---- the dataset frame and the models table -------------------------------
+    _r = al.load_returns("SPX")["ret"].dropna()
+    _b = pd.read_csv(ROOT / "data" / "lab" / "bench_SPX.csv", parse_dates=["date"])
+    _t0, _t1 = _b["date"].min(), _b["date"].max()
+    _te = _r.loc[_t0:_t1]
+    check("data: returns on the slide", len(_r), 6791)
+    check("data: first date", str(_r.index[0].date()), "1998-01-05")
+    check("data: last date", str(_r.index[-1].date()), "2024-12-30")
+    check("data: scored days", len(_te), 500)
+    check("data: scored span is two whole calendar years",
+          (str(_t0.date()), str(_t1.date())), ("2023-01-04", "2024-12-30"))
+    check("data: sd over the whole sample", round(float(_r.std()), 2), 1.22, 0.005)
+    check("data: sd over the scored span", round(float(_te.std()), 2), 0.81, 0.005)
+    # Fisher excess kurtosis, the same estimator the figure prints.
+    check("data: excess kurtosis, whole sample",
+          round(float(stats.kurtosis(_r)), 1), 9.9, 0.05)
+    check("data: excess kurtosis, scored span",
+          round(float(stats.kurtosis(_te)), 1), 0.7, 0.05)
+    check("data: no return dated after the cutoff",
+          int((_r.index > pd.Timestamp("2024-12-30")).sum()), 0)
+
+    _mt = (ROOT / "tables" / "models_used.tex").read_text().splitlines()
+    _rows = [l for l in _mt if l.rstrip().endswith(r"\\")
+             and not l.startswith(r"\textbf{Model}")]
+    check("models table: rows", len(_rows), 10)
+    # rows are tinted \trained{...} / \untrained{...}; compare the text, not the tint
+    def _cell(line):
+        raw = line.split("&")[2].replace(r"\\", "").strip()
+        return re.sub(r"^\\(?:un)?trained\{(.*)\}$", r"\1", raw)
+
+    check("models table: where each quantile comes from",
+          sorted({_cell(l) for l in _rows}),
+          ["Neural volatility, $t$ tail", "Pretrained weights",
+           "The window itself", "Variance recursion, $t$ tail"])
+    check("models table: the four Claude rows name what the prompt adds",
+          sum(l.split("&")[1].strip().startswith("$+$") for l in _rows), 3)
+    check("models table: seven of ten are pretrained",
+          sum("Pretrained" in l for l in _rows), 7)
+    check("models table: three rows are tinted as estimated on our data",
+          sum(l.startswith(r"\trained") for l in _rows), 3)
+
+    # ---- the NN-t architecture frame, read out of the certified run ------------
+    _h = (ROOT.parent / "aida-risk" / "src" / "02f_hybrid.py").read_text()
+    _const = lambda n: re.search(rf"^{n} = (.+?)(?:\s+#|$)", _h, re.M).group(1).strip()
+    check("NN-t: hidden layer", _const("HIDDEN"), "(8,)")
+    check("NN-t: epochs", int(_const("EPOCHS")), 500)
+    check("NN-t: learning rate", float(_const("LR")), 8e-3)
+    check("NN-t: weight decay", float(_const("WEIGHT_DECAY")), 5e-3)
+    check("NN-t: sigma bounded to a factor of", float(_const("LOG_RANGE").split("(")[1].rstrip(")")), 4.0)
+    check("NN-t: tanh activation and a single output head",
+          ("nn.Tanh()" in _h) and ("self.head = nn.Linear(d, 1)" in _h), True)
+    check("NN-t: nu floored above", float(re.search(r"return (\d+\.\d+) \+ torch", _h).group(1)), 2.1)
+
+    # ---- the architecture diagrams, against the weights actually cached ---------
+    _hub = Path.home() / ".cache" / "huggingface" / "hub"
+
+    def _cfg(repo):
+        hits = sorted((_hub / f"models--{repo.replace('/', '--')}").glob(
+            "snapshots/*/config.json"))
+        return json.loads(hits[0].read_text()) if hits else None
+
+    _q = _cfg("Qwen/Qwen2.5-1.5B-Instruct")
+    if _q:
+        check("Qwen diagram: decoder blocks", _q["num_hidden_layers"], 28)
+        check("Qwen diagram: model width", _q["hidden_size"], 1536)
+        check("Qwen diagram: query heads", _q["num_attention_heads"], 12)
+        check("Qwen diagram: key-value heads", _q["num_key_value_heads"], 2)
+        check("Qwen diagram: vocabulary", _q["vocab_size"], 151936)
+        check("Qwen diagram: decoder-only", _q["architectures"], ["Qwen2ForCausalLM"])
+    else:
+        print("  --   Qwen weights not cached here; diagram not checked")
+
+    _t5 = _cfg("amazon/chronos-t5-mini")
+    if _t5:
+        check("Chronos-T5 diagram: encoder layers", _t5["num_layers"], 4)
+        check("Chronos-T5 diagram: decoder layers", _t5["num_decoder_layers"], 4)
+        check("Chronos-T5 diagram: width", _t5["d_model"], 384)
+        check("Chronos-T5 diagram: token vocabulary", _t5["vocab_size"], 4096)
+        check("Chronos-T5 diagram: context fed by the lab",
+              _t5["chronos_config"]["context_length"] >= 512, True)
+    else:
+        print("  --   Chronos-T5 weights not cached here; diagram not checked")
+
+
+    _ff = pd.read_csv(PRECOMP / f"slide_facts_{ASSET}.csv").set_index("fact")["value"]
+    if "t5_rerun_differs_01" in _ff.index:
+        check("Chronos-T5 rerun: share of days the 1% VaR changes (%)",
+              round(float(_ff["t5_rerun_differs_01"])), 29)
+        check("Chronos-T5 rerun: share identical (%)",
+              round(float(_ff["t5_rerun_same_01"])), 71)
+
+    # the leaderboard's closing claim: nothing beats the benchmark significantly
+    _sig = []
+    for _k in models:
+        if _k == "GARCH-t":
+            continue
+        _, _pv, _dd, _, _ = al.dm_test(bench["ret"], models[_k], models["GARCH-t"],
+                                       alpha=ALPHA)
+        if _pv < 0.05:
+            _sig.append((_k, _dd))
+    check("DM: models significantly different from GARCH-t", len(_sig), 3)
+    check("DM: comparisons the test cannot separate", len(models) - 1 - len(_sig), 6)
+    _top = al.backtest_table(bench["ret"], models,
+                             alpha=ALPHA).set_index("model")["pinball"].sort_values().head(3)
+    check("the three lowest losses are level to four decimals",
+          [round(float(x), 4) for x in _top], [0.0269, 0.0276, 0.0277])
+    check("and they are NN-t, Claude with news, and GARCH",
+          sorted(_top.index), sorted(["NN-t", "LLM-dated+news", "GARCH-t"]))
+    check("DM: every significant difference is a loss to GARCH-t",
+          all(d > 0 for _, d in _sig), True)
+
+    # why the news comparison is scored on loss: coverage cannot separate the two runs
+    _bt2 = al.backtest_table(bench["ret"], models, alpha=ALPHA).set_index("model")
+    check("news vs control: identical breach count",
+          int(_bt2.loc["LLM-dated", "observed"]) ==
+          int(_bt2.loc["LLM-dated+news", "observed"]) == 3, True)
+    check("news vs control: identical Kupiec p",
+          round(float(_bt2.loc["LLM-dated", "p_uc"]), 3) ==
+          round(float(_bt2.loc["LLM-dated+news", "p_uc"]), 3) == 0.331, True)
+    check("news vs control: the losses do differ",
+          round(float(_bt2.loc["LLM-dated", "pinball"]), 4) >
+          round(float(_bt2.loc["LLM-dated+news", "pinball"]), 4), True)
+
+    # the three history lengths the deck quotes are three different objects
+    _lab = (ROOT / "src" / "labcommon.py").read_text()
+    check("lab feeds Chronos its trained context",
+          int(re.search(r"^CONTEXT = (\d+)", _lab, re.M).group(1)), 512)
+    _llm = (ROOT / "src" / "03_llm_lab.py").read_text()
+    check("language models are shown 60 days",
+          int(re.search(r"^CONTEXT_DAYS = (\d+)", _llm, re.M).group(1)), 60)
+
+    # the cross-market comparison against the benchmark
+    _f = pd.read_csv(PRECOMP / f"slide_facts_{ASSET}.csv").set_index("fact")["value"]
+    if "vs_garch_assets" in _f.index:
+        check("LLM vs GARCH: markets compared", int(_f["vs_garch_assets"]), 5)
+        check("LLM vs GARCH: markets the test can separate",
+              int(_f["vs_garch_separable"]), 1)
+        check("LLM vs GARCH: markets where the language model is significantly ahead",
+              int(_f["vs_garch_llm_ahead_significantly"]), 0)
+
+    _fd = pd.read_csv(PRECOMP / f"slide_facts_{ASSET}.csv").set_index("fact")["value"]
+    _dist = {k: float(v) for k, v in _fd.items() if k.startswith("distinct_pct_")}
+    if _dist:
+        _llm = {k: v for k, v in _dist.items() if not k.endswith("_HS")}
+        check("every language model's distinct share is under 11%",
+              max(_llm.values()) < 11.0, True)
+        check("historical simulation repeats more than any of them",
+              _dist["distinct_pct_HS"] < min(_llm.values()), True)
+        check("and its share is", round(_dist["distinct_pct_HS"], 1), 2.6)
+
+    # the closing answer, model by model across the five markets
+    _rej = {}
+    for _a in ("SPX", "DAX", "N225", "GOLD", "BTC"):
+        _r2 = pd.read_csv(LAB / f"bench_{_a}.csv", parse_dates=["date"])
+        _r2 = _r2[np.isclose(_r2["level"], ALPHA)]
+        _p2 = _r2.pivot_table(index="date", columns="model", values="var")
+        _ret2 = _r2.groupby("date")["ret"].first()
+        _m2 = {k: _p2[k] for k in ("HS", "GARCH-t", "NN-t") if k in _p2}
+        _t5 = PRECOMP / f"chronos_t5_{_a}.csv"
+        if _t5.exists():
+            _d5 = pd.read_csv(_t5, parse_dates=["date"])
+            _m2["Chronos-T5"] = _d5[np.isclose(_d5["level"], ALPHA)].set_index("date")["var"]
+        for _cfg, _k in [("series", "LLM-series"), ("series_state", "LLM-series+state"),
+                         ("dated", "LLM-dated"), ("dated_news", "LLM-dated+news")]:
+            _f2 = PRECOMP / f"llm_{_cfg}_{_a}_{LLM_MODEL}.csv"
+            if _f2.exists():
+                _d2 = pd.read_csv(_f2, parse_dates=["date"]).set_index("date")
+                _m2[_k] = _d2.loc[usable(_d2), "var"]
+        _bt3 = al.backtest_table(_ret2, _m2, alpha=ALPHA).set_index("model")
+        for _k in _bt3.index:
+            _rej[_k] = _rej.get(_k, 0) + int(_bt3.loc[_k, "p_uc"] < 0.05)
+    check("Claude configurations never rejected on any market",
+          sum(1 for k, v in _rej.items() if k.startswith("LLM-") and v == 0), 3)
+    check("Chronos-T5 rejections across the five markets", _rej["Chronos-T5"], 4)
+    check("GARCH-t rejections", _rej["GARCH-t"], 1)
+    check("historical simulation rejections", _rej["HS"], 2)
+    # every rejection, and which side of nominal it falls on
+    _many = _few = 0
+    for _a in ("SPX", "DAX", "N225", "GOLD", "BTC"):
+        _r3 = pd.read_csv(LAB / f"bench_{_a}.csv", parse_dates=["date"])
+        _r3 = _r3[np.isclose(_r3["level"], ALPHA)]
+        _p3 = _r3.pivot_table(index="date", columns="model", values="var")
+        _ret3 = _r3.groupby("date")["ret"].first()
+        _m3 = {k: _p3[k] for k in ("HS", "GARCH-t", "NN-t") if k in _p3}
+        _t53 = PRECOMP / f"chronos_t5_{_a}.csv"
+        if _t53.exists():
+            _d53 = pd.read_csv(_t53, parse_dates=["date"])
+            _m3["Chronos-T5"] = _d53[np.isclose(_d53["level"], ALPHA)].set_index("date")["var"]
+        for _cfg, _k in [("series", "LLM-series"), ("series_state", "LLM-series+state"),
+                         ("dated", "LLM-dated"), ("dated_news", "LLM-dated+news")]:
+            _f3 = PRECOMP / f"llm_{_cfg}_{_a}_{LLM_MODEL}.csv"
+            if _f3.exists():
+                _d3 = pd.read_csv(_f3, parse_dates=["date"]).set_index("date")
+                _m3[_k] = _d3.loc[usable(_d3), "var"]
+        _o3 = PRECOMP / f"local_series_{_a}_{OPEN_MODEL}.csv"
+        if _o3.exists():
+            _d3 = pd.read_csv(_o3, parse_dates=["date"]).set_index("date")
+            _m3["Open-1.5B"] = _d3.loc[usable(_d3), "var"]
+        _l3 = PRECOMP / f"llmtime_{_a}_{OPEN_MODEL}_T0.7_N1000_float16.csv"
+        if _l3.exists():
+            _d3 = pd.read_csv(_l3, parse_dates=["date"]).set_index("date")
+            _m3["LLMTime-1.5B"] = _d3.loc[usable(_d3), "var_01"]
+        _bt4 = al.backtest_table(_ret3, _m3, alpha=ALPHA).set_index("model")
+        for _k in _bt4.index:
+            if _bt4.loc[_k, "p_uc"] < 0.05:
+                if _bt4.loc[_k, "rate_pct"] > 100 * ALPHA:
+                    _many += 1
+                else:
+                    _few += 1
+    check("rejections for too many breaches", _many, 15)
+    check("rejections for too few", _few, 3)
+
     print(f"\n{len(PASSED)} claims verified, {len(FAILED)} failed")
     print("\nNOT machine-checked, inherited from the certified aida-risk run and "
           "attributed on the slide:")
-    print("  - Chronos fed returns instead of prices: predictive sd 0.14 vs realised "
-          "1.22 (aida-risk/src/02c_chronos.py)")
+    print("  - NN-t architecture selection on the first 39% of the sample: the chosen "
+          "network beats the EWMA column alone, a larger one loses to it "
+          "(aida-risk/src/02f_hybrid.py)")
     if FAILED:
         for lab, got, want in FAILED:
             print(f"  MISMATCH  {lab}: got {got}, slide says {want}")

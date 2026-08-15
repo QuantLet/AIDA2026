@@ -1,0 +1,5 @@
+fact,value
+chronos_returns_pred_sd,0.11
+chronos_returns_realised_sd,0.81
+chronos_returns_n,500.0
+chronos_returns_samples,500.0

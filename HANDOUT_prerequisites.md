@@ -57,10 +57,19 @@ single fact is why the course separates three questions that are usually run tog
 - **validity** — is this forecast compatible with the target coverage and dynamics?
 - **power** — would the test have detected a materially invalid model on this sample?
 
-## What you need installed for the laboratory
+## What you need for the laboratory
 
-Python 3.11+, with `numpy`, `pandas`, `scipy` and `matplotlib`. Everything else is
-optional: the language-model forecasts and the aligned headlines ship as data, and
-**no API key is needed at any point**. If you want to run the open-weights leg live,
-about 3 GB of model weights are downloaded from Hugging Face — do that before the
-session, not during it.
+A laptop, a browser and a Google account. The notebook runs in **Google Colab** — open
+it from the badge at the top of `notebook/AIDA_Risk_Lab.ipynb` — so there is **nothing
+to install**, and **no API key is needed at any point**. The language-model forecasts
+and the aligned headlines ship as data.
+
+One thing to plan around. Colab keeps nothing between sessions, so the 3.1 GB of Qwen
+weights behind the optional live open-weights leg are fetched inside the Colab machine
+every time; you cannot pre-download them at home. Start that cell early, and set the
+runtime to a T4 GPU: about one minute of compute against eleven on the free CPU runtime.
+Skipping it costs you nothing else — the shipped file covers all 500 days, and every
+`SLOW` cell has the same fallback.
+
+Running locally instead works too: Python 3.11+ with `numpy`, `pandas`, `scipy` and
+`matplotlib`.

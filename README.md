@@ -26,10 +26,53 @@ July deck's numbers trace to.
 python3 src/05_verify_slide_claims.py SPX    # 61 slide numbers, re-derived from data
 ```
 
-Chronos segfaults on import under the main conda environment (chronos-forecasting 2.2.2 /
-transformers 4.57 / torch 2.12, Python 3.13). The two Chronos stages therefore run under
-`../aida-ensemble/venv/bin/python`, which has a working install. `run_all.sh` handles
-this; if you run a stage by hand, use that interpreter.
+### Environments
+
+The package needs three, and every pin below was read from the interpreter that produced
+the committed results rather than assumed:
+
+| file | interpreter | stages | what it regenerates |
+|---|---|---|---|
+| `requirements.txt` | `python3` | 01, 04, 04b, 05, 06 | every figure, every table, all 105 checks |
+| `requirements-chronos.txt` | `../aida-ensemble/venv/bin/python` | 02 | the Chronos panels |
+| `requirements-openweights.txt` | `~/.venvs/aida-2026/bin/python` | 03, 07, 09 | the language-model panels |
+
+**The first one is enough to rebuild the deck.** The model panels are committed under
+`precomputed/`, so a reviewer reproduces every number without weights, GPU or API key.
+
+#### The notebook is deliberately not pinned to any of them
+
+The three files above pin *this machine*, so the committed panels can be regenerated.
+The notebook has a different job: survive Google Colab. Transplanting `torch==2.13`
+from the local MPS environment onto a Colab runtime buys nothing pedagogically and
+invites a mass reinstall, a CUDA mismatch or a runtime restart in the middle of a
+two-hour laboratory.
+
+So the two install cells stay unpinned, and every stage prints the versions it actually
+resolved: the setup cell prints Python, numpy, pandas, scipy and matplotlib; the Chronos
+cell prints `chronos-forecasting`, `transformers` and `torch`; the open-weights cell
+prints `transformers`, `accelerate`, `torch` and the device. A result from a foundation
+model belongs to an artefact and an interface, which is the argument of the session --
+the notebook now records its own interface.
+
+To harden it for a specific cohort, in this order:
+
+1. Pin the **Colab runtime**, not the packages --- Colab supports this precisely so a
+   platform update cannot break a workshop notebook. Run the notebook end to end on the
+   target runtime first.
+2. If the Chronos section needs pinning, pin only `chronos-forecasting`, and to the
+   version the printout showed working.
+3. Pin `transformers` and `accelerate` only after a full run on that runtime, and leave
+   `torch` to the runtime unless the run proves otherwise.
+
+Nothing here is pinned on the strength of the local environment alone.
+
+The split is not tidiness. Chronos segfaults on import under the main environment
+(chronos-forecasting 2.2.2 / transformers 4.57 / torch 2.12, Python 3.13), and the
+open-weights stages have since moved to transformers 5.14 / torch 2.13 under Python
+3.12, which chronos-forecasting 2.2.2 does not accept. `run_all.sh` and `run_raised.sh`
+route each stage to the right interpreter; if you run a stage by hand, use the one in
+the table.
 
 ## Pipeline
 

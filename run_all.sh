@@ -7,6 +7,9 @@
 # Chronos segfaults on import under the main Anthropic/conda environment, so the two
 # Chronos stages run under ../aida-ensemble/venv, which has a working install. Every
 # other stage runs under whatever python3 is on the path.
+#
+# Pinned versions per interpreter: requirements.txt (PY), requirements-chronos.txt
+# (CHRONOS_PY), requirements-openweights.txt (run_raised.sh). See README.md.
 
 set -euo pipefail
 cd "$(dirname "$0")"

@@ -36,3 +36,9 @@ slides/*.blg
 figures/eswa/eswa_LLM_System.png
 figures/eswa/eswa_VaR_exceedances_llmtime_120_gpt4o.png
 figures/eswa/eswa_VaR_exceedances_garch_normal_250.png
+
+# Resumable checkpoints for the returns-fed Chronos run (stage 02b)
+precomputed/_t5_returns_raw_*.csv
+
+# latexmk leftovers
+slides/*.bbl-SAVE-ERROR

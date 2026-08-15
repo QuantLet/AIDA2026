@@ -1,8 +1,23 @@
-"""Stage 09 — LLM-VaR the published way: sample completions, read the quantile off them.
+"""Stage 09 — LLM-VaR by sampling: draw completions, read the quantile off them.
 
-This is the method of Pele, Bolovaneanu, Lin, Ren, Ginavar, Spilak, Andrei, Toma,
-Lessmann and Haerdle (2025), which follows LLMTime (Gruver et al., 2023), verified
-against the published code at github.com/QuantLet/LLM_Risk.
+The method is Pele, Bolovaneanu, Lin, Ren, Ginavar, Spilak, Andrei, Toma, Lessmann and
+Haerdle (2025), which follows LLMTime (Gruver et al., 2023).
+
+NOT A REPLICATION, AND THE DIFFERENCE IS IN THE PROMPT. Checked against models/gpt.py
+and models/llmtime.py at github.com/QuantLet/LLM_Risk on 2026-08-15, this stage differs
+from the published protocol in two ways:
+
+    1. The published prompt wraps the sequence in a system message ("You are a helpful
+       assistant that performs time series predictions...") and a user instruction
+       ("Please continue the following sequence without producing any additional
+       text..."). This stage sends the serialised sequence and nothing else.
+    2. The published pipeline rescales each context with get_scaler(alpha=0.95,
+       beta=0.3) before serialising. This stage serialises the raw returns.
+
+Both are defensible for a base model prompted for raw continuation, and neither is what
+the paper ran. Any comparison drawn from this stage is a comparison of extraction
+methods on the same weights, not a reproduction of the published numbers, and the deck
+says so on the frame that shows the two prompts side by side.
 
     serialise the returns  ->  sample N completions at temperature T  ->  VaR is the
     empirical alpha-quantile of the sampled next values
@@ -70,7 +85,44 @@ def serialise(x):
     return ", ".join(f"{v:.2f}" for v in x)
 
 
-def draw(mod, tok, dev, prompt, n, temp, batch=BATCH):
+# The published wrapper, transcribed from models/gpt.py at github.com/QuantLet/LLM_Risk
+# on 2026-08-15. --wrapper reproduces it; the default keeps the bare-continuation prompt
+# the precomputed files were produced with, so old and new runs cannot be confused.
+PUB_SYSTEM = ("You are a helpful assistant that performs time series predictions. The "
+              "user will provide a sequence and you will predict the remaining "
+              "sequence. The sequence is represented by decimal strings separated by "
+              "commas.")
+PUB_USER = ("Please continue the following sequence without producing any additional "
+            "text. Do not say anything like 'the next terms in the sequence are', just "
+            "return the numbers. Sequence:\n")
+
+
+def get_scaler(history, alpha=0.95, beta=0.3):
+    """The published affine scaler, transcribed from get_scaler in models/llmtime.py at
+    github.com/QuantLet/LLM_Risk, retrieved 2026-08-15, with basic=False as the paper
+    runs it.
+
+    Note what it does to a return series: min_ sits BELOW the sample minimum by beta of
+    the range, so every scaled value is positive and the serialised sequence carries no
+    minus signs at all. The model therefore never sees a negative token, which is a very
+    different input from the raw returns this stage sent before.
+    """
+    history = history[~np.isnan(history)]
+    min_ = np.min(history) - beta * (np.max(history) - np.min(history))
+    q = float(np.quantile(history - min_, alpha))
+    if q == 0:
+        q = 1.0
+    return (lambda x: (x - min_) / q), (lambda x: x * q + min_)
+
+
+def wrap_published(tok, series_str):
+    """The sequence inside the published system message and instruction."""
+    msgs = [{"role": "system", "content": PUB_SYSTEM},
+            {"role": "user", "content": PUB_USER + series_str}]
+    return tok.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)
+
+
+def draw(mod, tok, dev, prompt, n, temp, batch=BATCH, inv=None):
     """Sample n continuations of the serialised series; return the parsed next values."""
     import torch
     out = []
@@ -89,6 +141,10 @@ def draw(mod, tok, dev, prompt, n, temp, batch=BATCH):
                     v = float(m.group(0))
                 except ValueError:
                     continue
+                # Scaled draws come back on the scaled axis, so they are mapped
+                # home before the sanity filter, which is stated in return units.
+                if inv is not None:
+                    v = float(inv(v))
                 # A completion is only usable if it looks like a daily return at all.
                 # Values beyond +/-40% are decoding failures, not forecasts, and are
                 # dropped rather than winsorised: the count is reported.
@@ -101,6 +157,12 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--asset", default="SPX", choices=list(ASSETS))
     p.add_argument("--model", default=DEFAULT_MODEL)
+    p.add_argument("--scaler", action="store_true",
+                   help="apply the published affine scaler before serialising and map "
+                        "the draws back afterwards; writes to its own output file")
+    p.add_argument("--wrapper", action="store_true",
+                   help="wrap the sequence in the published system message and "
+                        "instruction; writes to its own output file")
     p.add_argument("--samples", type=int, default=N_SAMPLES)
     p.add_argument("--temp", type=float, default=TEMP)
     p.add_argument("--batch", type=int, default=BATCH,
@@ -141,7 +203,9 @@ def main():
     slug = a.model.split("/")[-1]
     suffix = f"_smoke{len(dates)}" if a.limit else ""
     prec = f"_{a.dtype}" if a.dtype else ""
-    stem = f"llmtime_{a.asset}_{slug}_T{a.temp}_N{a.samples}{prec}{suffix}"
+    # the prompt is part of the identity of a run, so it is part of the file name
+    wrap = ("_pubprompt" if a.wrapper else "") + ("_scaled" if a.scaler else "")
+    stem = f"llmtime_{a.asset}_{slug}_T{a.temp}_N{a.samples}{prec}{wrap}{suffix}"
     path = PRECOMP / f"{stem}.csv"
     ckpt = PRECOMP / f"_{stem}.csv"
 
@@ -157,8 +221,15 @@ def main():
             rows.append(done[d])
             continue
         hist = rets.loc[:d, "ret"].iloc[:-1].tail(CONTEXT_DAYS).values
-        prompt = serialise(hist) + ","
-        s = draw(mod, tok, dev, prompt, a.samples, a.temp, a.batch)
+        inv = None
+        ser = hist
+        if a.scaler:
+            fwd, inv = get_scaler(hist)
+            ser = fwd(hist)
+        prompt = serialise(ser) + ","
+        if a.wrapper:
+            prompt = wrap_published(tok, prompt)
+        s = draw(mod, tok, dev, prompt, a.samples, a.temp, a.batch, inv=inv)
         if len(s) >= 20:
             q01, q05 = float(np.quantile(s, ALPHA)), float(np.quantile(s, ALPHA_SECONDARY))
             rows.append({"date": d, "var_01": -q01, "var_05": -q05, "var": -q01,

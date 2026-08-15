@@ -8,7 +8,7 @@ Checks:
   2. every level-1 item has at least one level-2 item beneath it
   3. no text sits outside a list, a block, a table or a figure
   4. no banned phrasing (appositive negations, jargon retired during review)
-  5. every abbreviation is expanded on or before the frame that first uses it
+  5. every abbreviation is expanded, and every symbol glossed, on or before first use
   6. citations resolve to the bibliography
   7. every included graphic exists
   8. no frame carries more than five level-1 items
@@ -59,6 +59,55 @@ BINDINGS = {
     "JSON": r"JSON",
 }
 
+# symbol -> the pattern that counts as glossing it in words. A symbol that first appears
+# inside a display and is explained two acts later is not defined at first use, which is
+# how the deck came to introduce r_t, the information set and nu without saying what they
+# were. The gloss has to sit on the same frame or an earlier one.
+SYMBOLS = {
+    r"r_{t}": r"log return|daily return",
+    r"\\mathcal\{I\}": r"known\s+at the close|information available|information set",
+    r"L_t|L_{t}": r"the loss",
+    r"q_{t}": r"return quantile|quantile of",
+    r"\\sigma_{t}": r"scale",
+    r"\\mu_{t}": r"conditional mean",
+    r"z_{t}": r"standardised shock",
+    r"\\nu": r"degrees of freedom|degrees-of-freedom",
+    r"\\omega": r"variance intercept",
+    r"\\varepsilon_{t}": r"varepsilon_\{t\} = r_\{t\}",
+    r"x_{t-1}": r"predictors",
+    r"\\theta": r"mapping those predictors|\\theta\)|parameters",
+    r"s_{w}": r"standard deviation",
+    r"W": r"last \$W\$ days|window",
+    r"\bT\b": r"scored days|number of days",
+    r"\\rho\(L\)": r"capital",
+}
+
+
+def maths(body):
+    """Every math segment on a frame, joined. A symbol is used when it appears in a
+    formula; the same letter in prose is a word, which is why the search is split."""
+    return " ".join(g for m in re.finditer(r"\$\$(.+?)\$\$|\$(.+?)\$|\\\[(.+?)\\\]",
+                                          body, re.S)
+                    for g in m.groups() if g)
+
+
+def symbol_gloss(order, flag):
+    """Symbols used in maths before any frame says what they stand for."""
+    for sym, gloss in SYMBOLS.items():
+        use = dfn = None
+        for i, (title, body) in enumerate(order):
+            if dfn is None and re.search(gloss, title + "\n" + body, re.I):
+                dfn = i
+            if use is None and re.search(sym, maths(body)):
+                use = i
+            if use is not None and dfn is not None:
+                break
+        if use is None:
+            continue
+        if dfn is None or dfn > use:
+            where = order[use][0][:44] or "(no title)"
+            flag("symbol used before it is glossed", f"{sym} on '{where}'",
+                 "say what it stands for there, or earlier")
 
 def frames(src):
     """Yield (title, body, first line number) for every frame in the deck."""
@@ -177,6 +226,7 @@ def main():
     # frames are emitted in reading order, so the first frame that uses an abbreviation
     # and the first that expands it can be compared directly
     order = [(t, b) for t, b, _ in frames(src)]
+    symbol_gloss(order, flag)
     for ab, expansion in BINDINGS.items():
         use = dfn = None
         for i, (title, body) in enumerate(order):

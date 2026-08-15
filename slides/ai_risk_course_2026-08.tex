@@ -167,7 +167,9 @@
           \item
                 $\Prob\!\left(r_{t} < -\widehat{\mathrm{VaR}}_{t}(\alpha) \mid
                 \mathcal{I}_{t-1}\right) = \alpha$
-          \item The rate is right, and the breaches do not cluster.
+          \item $r_{t}$ is the daily log return in \%, $\mathcal{I}_{t-1}$ what is known
+                at the close of $t-1$, and a hat marks a quantity computed from data.
+          \item The rate is right, and the breaches arrive independently.
         \end{itemize}
       \end{block}
 
@@ -345,9 +347,9 @@
   \vspace{0.3em}
   \begin{block}{}
     \begin{itemize}
-      \item VaR satisfies the first three \parencite{artzner1999coherent}.
-      \item It is sub-additive on \textbf{elliptical} losses: jointly Gaussian, or
-            Student-$t$ with a common $\nu$.
+      \item VaR satisfies the first three \parencite{artzner1999coherent}, and is
+            sub-additive on \textbf{elliptical} losses: jointly Gaussian, or
+            Student-$t$ sharing one degrees-of-freedom $\nu$.
       \item Outside it VaR can fail, and Basel moved capital to $97.5\%$ ES
             \parencite{bcbs2019frtb}.
     \end{itemize}
@@ -372,8 +374,8 @@
 
 \begin{frame}{Two factors, but only one is richly identified}
   \begin{itemize}
-    \item $\sigma_{t}$ is the \textbf{scale}, $q_{z}(\alpha)$ the quantile of the
-          standardised shock $z_{t}$.
+    \item $\mu_{t}$ is the conditional mean, $\sigma_{t}$ the \textbf{scale}, and
+          $q_{z}(\alpha)$ the quantile of the standardised shock $z_{t}$.
       \[ q_{t}(\alpha) = \mu_{t} + \scale{\sigma_{t}}\,\shape{q_{z}(\alpha)}
          \qquad\text{when}\qquad
          r_{t} = \mu_{t} + \sigma_{t}\,z_{t},\ \ z_{t}\ \text{i.i.d.} \]
@@ -520,13 +522,16 @@
             = -\left(\hat\mu + \hat\sigma_{t}\, q_{\hat\nu}(\alpha)\right) \]
       \vspace{-1.1em}
       \begin{itemize}
-        \item $\alpha_{1}$ weights yesterday's shock, $\beta_{1}$ yesterday's variance.
+        \item $\mu$ is the constant mean and $\omega$ the variance intercept;
+              $\alpha_{1}$ weights yesterday's shock, $\beta_{1}$ yesterday's variance.
+        \item Subscripted, $\alpha_{1}$ is a GARCH coefficient; bare, $\alpha$ stays the
+              VaR level throughout.
       \end{itemize}
     \item The tail \textbf{family is imposed} on the standardised shock
           $z_{t} = \varepsilon_{t}/\sigma_{t}$; only its parameters are estimated.
       \begin{itemize}
         \item Here it is \textbf{Student-$t$}.
-        \item A raw $t_{\nu}$ has variance
+        \item With $\nu$ the degrees of freedom, a raw $t_{\nu}$ has variance
               $\nu/(\nu-2)$, so it is rescaled to make $\mathrm{Var}(z_t) = 1$:
           \[ q_{\nu}(\alpha) = t_{\nu}^{-1}(\alpha)\,
              \sqrt{\tfrac{\nu-2}{\nu}} \]
@@ -1075,7 +1080,7 @@
 \begin{frame}{Backtesting in one line}
   \hypertarget{main:backtest}{}%
   \begin{itemize}
-    \item Count the days the threshold was crossed:
+    \item Count the days the threshold was crossed, over $T$ scored days:
       \[ \hat\alpha = \frac{1}{T}\sum_{t=1}^{T}
          \mathbf{1}\!\left\{r_{t} < -\widehat{\mathrm{VaR}}_{t}(\alpha)\right\} \]
   \end{itemize}
@@ -1464,7 +1469,7 @@
           \item $\mathrm{VaR}_t(\alpha) = -q_t(\alpha) > 0$: a positive magnitude.
           \item $\mathrm{ES}_t(\alpha) = \frac{1}{\alpha}\int_{0}^{\alpha}\mathrm{VaR}_t(u)\,\mathrm{d}u$:
                 the worst $\alpha$ averaged.
-          \item Breach: $I_t = \mathbf{1}\{r_t < -\widehat{\mathrm{VaR}}_t(\alpha)\}$.
+          \item Breach indicator: $\mathbf{1}\{r_t < -\widehat{\mathrm{VaR}}_t(\alpha)\}$.
           \item A \textbf{hat} marks a quantity computed from data.
         \end{itemize}
       \end{block}

@@ -63,6 +63,40 @@ BINDINGS = {
     "QR": r"[Qq]uantile regression",
 }
 
+# symbol -> what counts as glossing it in words. Matched against maths only, because the
+# same letter in prose is a word. Mirrors SYMBOLS in src/06_lint_slides.py.
+SYMBOLS = {
+    r"r_\{?t": r"log return|daily return",
+    r"\\alpha": r"level|\\alpha = 1",
+    r"L_\\alpha": r"pinball",
+    r"\\bar d|d_t": r"loss differen",
+    r"\\hat\\Omega": r"HAC|autocorrelation",
+}
+
+
+def maths(text):
+    """The math segments of a cell, joined."""
+    return " ".join(g for m in re.finditer(r"\$\$(.+?)\$\$|\$(.+?)\$", text, re.S)
+                    for g in m.groups() if g)
+
+
+def unglossed_symbols(cells):
+    """Symbols a reader meets in a formula before the notebook says what they mean."""
+    text = ["".join(c["source"]) for c in cells]
+    out = []
+    for sym, gloss in SYMBOLS.items():
+        use = dfn = None
+        for i, t in enumerate(text):
+            if dfn is None and re.search(gloss, t, re.I):
+                dfn = i
+            if use is None and re.search(sym, maths(t)):
+                use = i
+            if use is not None and dfn is not None:
+                break
+        if use is not None and (dfn is None or dfn > use):
+            out.append((use, f"uses {sym!r} in maths before any cell glosses it"))
+    return out
+
 
 def unbound_abbreviations(cells):
     """Abbreviations a reader meets before the notebook says what they stand for."""
@@ -103,6 +137,7 @@ def main():
         defined |= bound
 
     problems += unbound_abbreviations(nb["cells"])
+    problems += unglossed_symbols(nb["cells"])
 
     for i, msg in sorted(problems):
         print(f"  cell {i:3d}  {msg}")

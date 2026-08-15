@@ -57,7 +57,8 @@ Click the badge. Colab loads this file alone, and the first code cell clones the
 rest of the course into the runtime. Everything runs on open weights and shipped data.
 
 One question, four kinds of answer. Every model here forecasts the same number, the 1%
-**Value at Risk** (VaR): the loss tomorrow exceeds with probability $\alpha$.
+**Value at Risk** (VaR): the loss tomorrow exceeds with probability $\alpha$, where
+$r_t$ is the daily log return in percent.
 
 $$\Pr\left(r_{t} < -\widehat{\mathrm{VaR}}_{t}(\alpha)\right) = \alpha ,
 \qquad \alpha = 1\%$$

@@ -71,7 +71,7 @@ Every model in this notebook sees the same information and is scored on the same
 | **Historical simulation** | sort the last 250 days, read off the 3rd worst |
 | **GARCH(1,1)-$t$** | a variance recursion, scaled by a Student-$t$ quantile |
 | **NN vol + $t$** | a small network learns the scale, the tail shape stays parametric |
-| **Chronos-T5** | the same family, but it samples paths, so any quantile can be read |
+| **Chronos-T5** | pretrained on other series, samples paths, any quantile read off them |
 | **LLM** | the return series written out as text, the quantile asked for in words |
 
 You will find out which of them is *calibrated*, which is a different question from
@@ -387,19 +387,19 @@ Four information sets are shipped, for every asset:
 | `series` | the last 60 returns, anonymised |
 | `series+state` | the same, plus realised volatility, drawdown and the HS VaR |
 | `dated` | the same returns, plus the asset name and the date |
-| `dated+news` | the same, plus the real headlines available at $t-1$ (section 6) |
+| `dated+news` | the same, plus the real headlines available at $t-1$ (section 5) |
 
 **Why two of them are anonymised.** The model's training data covers these dates. Tell
 it "S&P 500, 5 August 2024" and a good forecast may be recall rather than inference,
 and recall is not available for tomorrow. The `dated` configuration exists to *measure*
-that effect — and to serve as the control for the news test in section 6.
+that effect — and to serve as the control for the news test in section 5.
 
 **The headlines are real.** They come from EODHD, not from anyone's imagination: a
 headline file written to match the returns would manufacture the relation it claims to
-test. How they are aligned to the forecast dates is section 6, and it is the part
+test. How they are aligned to the forecast dates is section 5, and it is the part
 worth arguing with.
 
-This section works with the first two. The last two are section 6's business.
+This section works with the first two. The last two are section 5's business.
 """, "required", mins="seconds")
 
 code(r"""
@@ -563,15 +563,15 @@ you would use to separate the two.
 md(r"""
 ### 5.1 The same experiment, with a model you run yourself
 
-Everything above came from a commercial endpoint. If you have a key, section 5 is
-reproducible; if you do not, it is a table someone else computed. So the same prompt is
+Everything above came from a commercial endpoint. With a key that part is
+reproducible for you; without one it is a table someone else computed. So the same prompt is
 also put through a model with **open weights**, downloaded from Hugging Face exactly the
 way Chronos was, running on this machine.
 
 - `Qwen2.5-1.5B-Instruct` — about 3 GB, roughly a second per forecast on a Colab GPU
   and a few seconds on CPU. This is the leg you run yourself.
 - `Qwen2.5-3B-Instruct` — twice the size, shipped precomputed. It is here to answer one
-  question: **does a larger model give a more informative VaR?** The next cell counts
+  question: **does a larger model give a VaR that moves with the market?** The next cell counts
   distinct outputs, which is where the answer shows up.
 
 The prompt, the JSON schema and the parser are **imported** from the commercial stage
@@ -612,7 +612,7 @@ for k, v in cand.items():
 """)
 
 md(r"""
-**Question 3b.** One of these models produces well-formed JSON, a correctly signed
+**Question 3b.** One of these models produces valid JSON, a correctly signed
 quantile and a correctly ordered pair on essentially every day — and is still useless.
 Which one, how did you tell, and which of the checks in the parser would have caught it?
 

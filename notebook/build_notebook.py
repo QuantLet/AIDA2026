@@ -103,18 +103,20 @@ so budget the downloads every time.
 | 1. Setup and reproducibility checks | ~10 s | ~20 MB, the repository |
 | 1.1 Power | seconds | — |
 | 2. Historical simulation | seconds | — |
-| 4. Chronos-T5 sampling resolution, 12 dates x 500 paths | ~2 min | ~80 MB, `chronos-t5-mini` |
-| 5. LLM parsing and logical checks | seconds | shipped as data |
-| 6. Dated versus dated+news | seconds | shipped as data |
-| 6.1 Open weights live, 16 dates | **~11 min** on CPU, ~1 min on a T4 | 3.1 GB, `Qwen2.5-1.5B` |
-| 7. Coverage, loss and disagreement | seconds | — |
+| 3. Chronos-T5 sampling resolution, 12 dates x 500 paths | ~2 min | ~80 MB, `chronos-t5-mini` |
+| 4. LLM parsing and logical checks | seconds | shipped as data |
+| 5. Dated versus dated+news | seconds | shipped as data |
+| 5.1 Open weights live, 16 dates | **~11 min** on CPU, ~1 min on a T4 | 3.1 GB, `Qwen2.5-1.5B` |
+| 6. Coverage, loss and disagreement | seconds | — |
 
-**Compute is about 18 minutes of the two hours**, and 11 of those are the optional
-live open-weights cell. Everything else is reading, writing and
-arguing about what the numbers mean, which is the point of the session. Two consequences
+**Compute is about 18 minutes of the two hours**, and 11 of those are the optional live
+open-weights cell. The rest of the time is yours: three functions to write in sections 2
+and 6.1, your group's own market in 6.4, and the five questions at the end. Budget
+roughly 40 minutes for those, and the remainder for arguing about what the numbers mean,
+which is the point of the session. Two consequences
 worth planning around:
 
-- **Start section 6.1 early** if you want the live open-weights run, or set
+- **Start section 5.1 early** if you want the live open-weights run, or set
   `RUN_OPEN_LIVE = False` and use the shipped file. The 3.1 GB download is the single
   longest wait in the laboratory.
 - Everything marked `SLOW` has a precomputed fallback that loads in under a second, so a
@@ -735,7 +737,57 @@ plt.tight_layout(); plt.show()
 """)
 
 md(r"""
-### 6.1 Ranking against calibration: is the gap real?
+### 6.1 Two audits you write yourself
+
+The lecture claimed two things a backtest cannot see. Both are a couple of lines, and
+you should write them rather than take them on trust.
+
+**The distinct-value count.** A forecast that repeats yesterday's number is not thereby
+invalid: historical simulation repeats more than any language model here, for a reason
+you can write down. The count is a question to ask, not a verdict to pass.
+
+**The Kupiec statistic.** You have used its verdict all afternoon. Write the likelihood
+ratio once, so the power argument is about an expression you have seen.
+""", "required", mins="10 minutes")
+
+code(r'''
+# EXERCISE 2. Share of days carrying a distinct forecast, as a percentage.
+def distinct_share(v, places=4):
+    # v is a pandas Series of daily VaR forecasts.
+    return ...        # <-- your code here
+
+
+for name, v in sorted(models.items()):
+    v = v.dropna()
+    print(f"{name:24s} yours: {distinct_share(v)!s:>8.8}"
+          f"   reference: {100 * v.round(4).nunique() / len(v):5.1f}%"
+          f"   ({v.round(4).nunique()} of {len(v)})")
+''')
+
+md(r"""
+Historical simulation should sit at the bottom and GARCH-$t$ at the top. If your
+language-model columns are near the bottom too, that is the audit the lecture ran.
+""", "interpret")
+
+code(r'''
+# EXERCISE 3. Kupiec's unconditional-coverage statistic.
+#   LR_UC = -2 log [ (1-a)^(T-x) a^x / ( (1-x/T)^(T-x) (x/T)^x ) ],  chi2 with 1 df.
+def my_kupiec(x, T, alpha=ALPHA):
+    # x breaches out of T days. Return the statistic and its p-value.
+    return ...        # <-- your code here
+
+
+for name in ("HS", "GARCH-t", "NN-t"):
+    v = models[name].dropna()
+    x = int((bench["ret"].reindex(v.index) < -v).sum())
+    print(f"{name:10s} {x:3d} breaches of {len(v)}   yours: {my_kupiec(x, len(v))}")
+print("\nreference, from the table above:")
+print(bt[bt["model"].isin(["HS", "GARCH-t", "NN-t"])][["model", "observed", "p_uc"]]
+      .to_string(index=False))
+''')
+
+md(r"""
+### 6.2 Ranking against calibration: is the gap real?
 
 A leaderboard is an ordering. Whether the gap between two rows is larger than sampling
 noise is a separate question, and the Diebold–Mariano test on the loss differential is
@@ -772,7 +824,7 @@ what would you say about the other?
 """)
 
 md(r"""
-### 6.2 How much do the models actually disagree?
+### 6.3 How much do the models actually disagree?
 
 Different names, different vendors, different training corpora. That does not make them
 independent forecasts. The daily spread is the quantity that tells you whether averaging
@@ -819,6 +871,46 @@ md(r"""
 because they measure the same thing well, or because one of them is downstream of the
 other? How would you tell the two cases apart from the numbers alone?
 """)
+
+md(r"""
+### 6.4 Your group's asset
+
+Everything so far ran on the asset in `ASSET`. The lecture's headline came from the
+S&P 500, and the question is whether it survives a different market.
+
+Change `ASSET` at the top of the notebook to your group's market, run the notebook again
+from section 1, and bring three numbers back to the room: how many models your market
+rejects, whether the ordering by loss is the same, and whether the news comparison still
+goes the same way.
+
+The five markets do not agree, and the disagreement is the result.
+""", "required", mins="20 minutes")
+
+code(r'''
+# A compact version of the whole afternoon, on one asset. Run it for your market, then
+# for a neighbouring group's, and put the two side by side.
+def score_asset(asset, alpha=ALPHA):
+    r = al.load_returns(asset)
+    b = al.load_benchmarks(asset, alpha)
+    m = {k: b[k] for k in ("HS", "GARCH-t", "NN-t") if k in b}
+    for cfg, k in [("series", "LLM-series"), ("dated", "LLM-dated"),
+                   ("dated_news", "LLM-dated+news")]:
+        d = al.load_precomputed(f"llm_{cfg}_{asset}_{MODEL}.csv")
+        if d is not None:
+            ok = d["raw_ok"] & d["sign_ok"] & d.get("order_ok", True)
+            m[k] = d.loc[ok].set_index("date")["var"]
+    t = al.load_precomputed(f"chronos_t5_{asset}.csv")
+    if t is not None:
+        m["Chronos-T5"] = t[np.isclose(t["level"], alpha)].set_index("date")["var"]
+    out = al.backtest_table(b["ret"], m, alpha=alpha)
+    out.insert(0, "asset", asset)
+    return out
+
+mine = score_asset(ASSET)
+print(mine[["asset", "model", "n", "observed", "rate_pct", "pinball", "p_uc"]]
+      .sort_values("pinball").round(4).to_string(index=False))
+print(f"\nrejected at 5%: {(mine['p_uc'] < 0.05).sum()} of {len(mine)} models")
+''')
 
 md(r"""
 ### Five questions to answer before you leave

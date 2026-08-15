@@ -1,0 +1,12 @@
+Return exactly this JSON object:
+{
+  "q01": <number>,            // the 1% quantile of tomorrow's return, in percent. Negative.
+  "q05": <number>,            // the 5% quantile of tomorrow's return, in percent. Negative.
+  "prob_negative": <number>,  // probability tomorrow's return is below zero, 0 to 1
+  "prob_tail": <number>,      // probability tomorrow's return is below -2%, 0 to 1
+  "risk_score": <integer>,    // 0 calm to 100 extreme
+  "confidence": <number>,     // your confidence in q01, 0 to 1
+  "drivers": [<string>, ...]  // at most three short phrases
+}
+
+q01 must be more negative than q05: a 1% quantile lies further into the left tail.

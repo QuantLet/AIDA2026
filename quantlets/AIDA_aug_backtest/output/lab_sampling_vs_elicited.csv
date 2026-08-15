@@ -1,0 +1,11 @@
+asset,label,method,n_common,n_dropped,distinct,pinball,rate,p_uc
+SPX,S&P 500,sampled,494,6,15.9919,0.0439,5.0607,0.0
+SPX,S&P 500,elicited,494,6,9.5142,0.0533,7.085,0.0
+DAX,DAX 40,sampled,500,0,15.8,0.0405,4.8,0.0
+DAX,DAX 40,elicited,500,0,9.4,0.0505,6.8,0.0
+N225,Nikkei 225,sampled,500,0,18.2,0.0865,6.4,0.0
+N225,Nikkei 225,elicited,500,0,8.6,0.093,6.2,0.0
+GOLD,Gold futures,sampled,500,0,14.4,0.0494,5.2,0.0
+GOLD,Gold futures,elicited,500,0,8.6,0.0516,6.6,0.0
+BTC,Bitcoin,sampled,485,15,35.8763,0.1435,6.3918,0.0
+BTC,Bitcoin,elicited,485,15,13.8144,0.2996,13.1959,0.0

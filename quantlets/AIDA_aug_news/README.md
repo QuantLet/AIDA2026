@@ -6,4 +6,6 @@ Real headlines from EODHD aligned to forecast dates under an audited as-of rule:
 - **Output:** data/news/headlines_*.csv, coverage_*.csv
 - **Part of:** AIDA Summer School 2026 - AI in Financial Risk Modelling (August course)
 
+`AIDA_aug_news.ipynb` shows the result without running anything: 2 figure(s) at the folder root and 10 data file(s) under `output/`.
+
 Reproduce with `../../run_all.sh` from the package root; this folder is the extracted, citable form of one stage.

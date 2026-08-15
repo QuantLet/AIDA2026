@@ -177,13 +177,15 @@
 \section{Motivation}
 \begin{frame}{Four ways to produce tomorrow's $1\%$ VaR}
   \begin{itemize}
-    \item \textbf{Classical benchmarks}, fitted on this asset and nothing else.
+    \item \textbf{Classical benchmarks}, fitted on this asset alone.
       \begin{itemize}
         \item Sort the window and read the quantile off it.
         \item Or model the variance and impose a tail shape.
       \end{itemize}
     \item A \textbf{time-series foundation model}, pretrained elsewhere.
-
+      \begin{itemize}
+        \item It reads the price history and samples the next value.
+      \end{itemize}
     \item A \textbf{commercial language model}, handed the returns as text.
       \begin{itemize}
         \item VaR  comes out of prompted generation.
@@ -217,7 +219,7 @@
       \end{itemize}
     \item \textbf{Act III --- Time-series foundation models.}
       \begin{itemize}
-        \item Zero-shot: pretrained elsewhere, no fitting here.
+        \item Zero-shot: pretrained elsewhere, used as it arrives.
 
       \end{itemize}
     \item \textbf{Act IV --- Language models as risk forecasters.}
@@ -228,7 +230,7 @@
     \item \textbf{Act V --- Validation.}
       \begin{itemize}
         \item Ranking, coverage and power.
-        \item None of the three answers another.
+        \item Each one answers a different question.
       \end{itemize}
   \end{enumerate}
 \end{frame}
@@ -249,12 +251,12 @@
       \end{itemize}
     \item Separate \textbf{ranking}, \textbf{validity} and \textbf{power}.
       \begin{itemize}
-        \item Which forecast scores lower; whether either one is valid.
-        \item And whether the test could have told the difference.
+        \item Which forecast scores lower, and whether either one is valid.
+        \item Then whether the test could have told the difference.
       \end{itemize}
     \item Design an \textbf{as-of-valid} experiment with text and a pretrained model.
       \begin{itemize}
-        \item No information dated after the forecast was made.
+        \item Every input dated before the forecast was made.
         \item And a control that differs from it in one thing only.
       \end{itemize}
   \end{enumerate}
@@ -281,7 +283,7 @@
          \mathrm{VaR}_{t}(u)\,\mathrm{d}u \]
     \item VaR is a \textbf{threshold}; ES is an \textbf{average of the tail}.
       \begin{itemize}
-        \item ES averages the worst $\alpha$; VaR only locates its edge.
+        \item VaR locates the edge of the tail, ES averages what lies past it.
         \item On a continuous law that average is $\E[L_t \mid L_t > \mathrm{VaR}_t]$.
       \end{itemize}
     \item We score \textbf{VaR} today: every model family here can be asked for it.
@@ -306,8 +308,8 @@
 				\item Here that edge sits at $-3.45$ and the tail mean at $-5.01$, so
 				VaR $= 3.45$ and ES $= 5.01$.
 				\item Right: a Gaussian and a Student-$t_{3}$, each scaled to that same VaR.
-				\item Their expected shortfalls are $3.95$ and $5.32$. VaR alone cannot
-				separate them.
+				\item Their expected shortfalls are $3.95$ and $5.32$, so VaR alone reports the
+				same risk for both.
 		\end{itemize}
 	\end{block}
 \end{frame}
@@ -334,7 +336,8 @@
       \end{itemize}
     \item \textbf{Sub-additivity.} $\rho(L_{1} + L_{2}) \le \rho(L_{1}) + \rho(L_{2})$.
       \begin{itemize}
-        \item Merging never manufactures risk. The one VaR loses.
+        \item Diversification can only lower the requirement, and this is the one
+              VaR loses.
       \end{itemize}
   \end{itemize}
   \vspace{0.3em}
@@ -343,8 +346,8 @@
       \item VaR satisfies the first three \parencite{artzner1999coherent}.
       \item It is sub-additive on \textbf{elliptical} losses: jointly Gaussian, or
             Student-$t$ with a common $\nu$.
-      \item Outside it, VaR can fail --- which is why Basel moved capital to
-            $97.5\%$ ES \parencite{bcbs2019frtb}.
+      \item Outside it VaR can fail, and Basel moved capital to $97.5\%$ ES
+            \parencite{bcbs2019frtb}.
     \end{itemize}
   \end{block}
 \end{frame}
@@ -382,7 +385,7 @@
     \begin{column}{0.5\textwidth}
       \begin{block}{The scale}
         \begin{itemize}
-          \item Not observed, but estimated afresh each day.
+          \item Re-estimated every day from the recent past.
           \item Volatility clusters, so it is forecastable.
           \item Thousands of examples to learn from.
         \end{itemize}
@@ -430,7 +433,7 @@
     \item \textbf{\textcolor{IDAred}{POWER}} --- would that test have detected a
           materially invalid model on this sample?
       \begin{itemize}
-        \item A property of the experiment, which the model has no say in.
+        \item A property of the experiment, fixed before any model runs.
         \item Reported far less often than the other three.
       \end{itemize}
   \end{itemize}
@@ -459,7 +462,7 @@
           \item \cblue{1000} days long, refit every $20$, using data up to $t-1$.
           \item Burn-in: the recursion needs a pre-sample $\sigma^{2}_{0}$, so \cblue{250} days are dropped as its influence decays.
         \end{itemize}
-      \item That window belongs to the models that \emph{estimate}. A pretrained model estimates nothing, so it gets a \emph{context} instead.
+      \item That window belongs to the models that \emph{estimate}. A pretrained model arrives fitted, so it gets a \emph{context} instead.
       \item \cred{TEST} is held out for scoring, with a headline archive over it.
         \begin{itemize}
           \item Calm days: sd $0.81$ against $1.22$, excess kurtosis $0.7$ against $9.9$.
@@ -476,11 +479,11 @@
          = -\,\widehat{Q}_{\alpha}\!\left(r_{t-W},\dots,r_{t-1}\right) \]
       \vspace{-1.1em}
       \begin{itemize}
-        \item Nothing is fitted, and nothing is assumed about the shape of the tail.
+        \item The window supplies the tail shape directly.
       \end{itemize}
-    \item So there is no distribution to mis-specify.
+    \item So the only modelling decisions left are $W$ and the weighting.
       \begin{itemize}
-        \item But $W$ and the weighting are modelling decisions all the same.
+        \item Both are visible choices, and both move the answer.
       \end{itemize}
     \item Every day in the window carries weight $1/W$.
       \begin{itemize}
@@ -500,7 +503,7 @@
   \points{%
       \item In a $250$-day window $\alpha W = 2.5$: with interpolation the estimate rests on the \textbf{three} worst days in it.
       \item Right: the same estimator at $W = 250$ and $W = 1000$, on the same days.
-      \item It takes \textbf{21} distinct values over the span against \textbf{13} --- one estimator, two answers.
+      \item It takes \textbf{21} distinct values over the span against \textbf{13}, from one estimator on two window lengths.
   }
   \quantlet{AIDA\_aug\_data}{\qlbase/quantlets/AIDA_aug_data}
 \end{frame}
@@ -532,8 +535,8 @@
       \end{itemize}
     \item This is the scale/shape split written as one equation.
       \begin{itemize}
-        \item Half a century old \parencite{engle1982arch,bollerslev1986garch}, and
-              still the benchmark machine learning must beat.
+        \item Published in 1982 and 1986 \parencite{engle1982arch,bollerslev1986garch},
+              and still the benchmark to beat.
       \end{itemize}
   \end{itemize}
 \end{frame}
@@ -635,7 +638,7 @@
     \item \shape{\textbf{The shape}} has a handful.
       \begin{itemize}
         \item Two or three tail events a year, whatever the model.
-        \item No architecture can produce more of them.
+        \item The count belongs to the data, and every architecture faces it.
       \end{itemize}
     \item So hand the learner the scale, and keep the shape parametric.
       \begin{itemize}
@@ -655,11 +658,11 @@
   \end{itemize}
   \begin{block}{}
     \begin{itemize}
-      \item A pretrained model claims \emph{both} factors at once, having never seen
-            this asset.
+      \item A pretrained model claims \emph{both} factors at once, from a corpus of
+            other series.
         \begin{itemize}
           \item Any gain must come from transferable structure, extra information or an
-                assumption --- each of them checkable.
+                assumption, and each of the three is checkable.
         \end{itemize}
     \end{itemize}
   \end{block}
@@ -687,11 +690,10 @@
     \item \textbf{Supervised forecasting} --- fit on \emph{this} series, predict it.
     \item \textbf{Pretraining} --- fit once, on a large corpus of \emph{other} series.
     \item \textbf{Fine-tuning} --- take a pretrained model, continue training on yours.
-    \item \textbf{Zero-shot} --- take a pretrained model, run it, change nothing.
+    \item \textbf{Zero-shot} --- take a pretrained model and run it as it arrives.
       \begin{itemize}
         \item \cred{Zero-shot} covers Chronos and every language model, Acts III and IV.
         \item \cblue{HS, GARCH-$t$ and NN-$t$} are the supervised ones, fitted on this series.
-        \item What the pretrained weights saw before, we cannot inspect.
       \end{itemize}
   \end{itemize}
 \end{frame}
@@ -715,7 +717,7 @@
   \centering
   \includegraphics[width=0.85\textwidth]{s_chronosarch}
   \points{%
-      \item The weights arrive trained and are not touched here.
+      \item The weights arrive trained and stay fixed.
         \begin{itemize}
           \item It samples paths, so a quantile at any level is an order statistic of
                 the draws.
@@ -732,7 +734,8 @@
       \end{itemize}
     \item A sequence model is pretrained on a large corpus of time series.
       \begin{itemize}
-        \item That corpus excludes this asset, and its contents are not open to inspection.
+        \item That corpus excludes this asset, and its full contents stay closed to
+              inspection.
       \end{itemize}
     \item Forecasting is next-token prediction, decoded back to the value scale.
       \begin{itemize}
@@ -767,7 +770,7 @@
                   observed close $P_{t-1}$:
                   $\hat r_{t} = 100\log(\hat P_{t}/P_{t-1})$.
           \end{itemize}
-        \item Nothing is lost in that step, because the map is increasing in
+        \item That step preserves the quantile, because the map is increasing in
               $\hat P_{t}$.
           \begin{itemize}
             \item The $\alpha$ quantile of the price is therefore the $\alpha$ quantile
@@ -799,7 +802,7 @@
   \points{%
       \item Same weights, same prices, same dates. Only the number of sampled paths differs.
       \item The two estimates part on \textbf{29\%} of days, and when they part it is by one token, \textbf{0.63} percentage points.
-      \item At the library default of $20$ paths, no draw lies below the $1\%$ quantile at all.
+      \item At the library default of $20$ paths, the lowest draw already sits above the $1\%$ quantile.
   }
   \quantlet{AIDA\_aug\_chronos}{\qlbase/quantlets/AIDA_aug_chronos}
 \end{frame}
@@ -829,7 +832,7 @@
       \end{itemize}
     \item \textbf{Quantile elicitation} --- ask for the VaR itself.
       \begin{itemize}
-        \item The model states the threshold, and nothing in the call checks that it is one.
+        \item The model states the threshold, and checking that it is one is left to you.
       \end{itemize}
     \item \textbf{Predictive simulation} --- sample tomorrow's \emph{return}, many times.
       \begin{itemize}
@@ -855,8 +858,8 @@
   \centering
   \includegraphics[width=1.0\textwidth]{s_llmarch}
   \points{%
-      \item General Large language Model.
-
+      \item Every stage is general purpose: one tokeniser, 28 decoder blocks, one next-token head.
+      \item The $1\%$ level enters through the request and leaves through a parsed JSON field.
   }
   \quantlet{AIDA\_aug\_local\_llm}{\qlbase/quantlets/AIDA_aug_local_llm}
 \end{frame}
@@ -895,7 +898,7 @@
   \begin{itemize}
     \item \texttt{series} --- the last 60 returns, \textbf{anonymised}.
       \begin{itemize}
-        \item No ticker, no dates, no price levels.
+        \item Stripped of ticker, dates and price levels.
       \end{itemize}
     \item \texttt{series+state} --- the same, plus volatility, drawdown, the HS VaR.
     \item \texttt{dated} --- the same returns, plus the asset name and the date.
@@ -908,7 +911,7 @@
         \begin{itemize}
           \item Given ``S\&P 500, 5 August 2024'', the model can \emph{remember} what
                 happened instead of forecasting it.
-          \item A real forecast has no such memory to draw on, so a score won that way
+          \item A live forecast has only the past to work with, so a score won that way
                 would not survive live use.
         \end{itemize}
     \end{itemize}
@@ -950,7 +953,7 @@
     \item A headline enters the prompt for day $t$ only if it was published before that
           market's own close on $t-1$.
       \begin{itemize}
-        \item Consecutive cutoffs tile the calendar, so no article is counted twice and
+        \item Consecutive cutoffs tile the calendar, so each article is counted exactly
               none is dropped.
       \end{itemize}
     \item Real headlines also \emph{reveal the period}.
@@ -1017,7 +1020,7 @@
         \end{itemize}
       \item So a low count opens a question about the mechanism.
         \begin{itemize}
-          \item HS repeats for a reason you can write down; the others repeat for one you cannot.
+          \item HS repeats for a reason you can write down; the others repeat for one held in the weights.
         \end{itemize}
   }
   \quantlet{AIDA\_aug\_local\_llm}{\qlbase/quantlets/AIDA_aug_local_llm}
@@ -1026,9 +1029,9 @@
 
 
 
-\begin{frame}{Six ways to produce one quantile}
+\begin{frame}{Seven ways to produce one quantile}
   \centering\scriptsize
-  \renewcommand{\arraystretch}{1.25}
+  \renewcommand{\arraystretch}{1.15}
   \begin{tabular}{@{}L{2.15cm}L{1.6cm}L{1.9cm}L{1.8cm}L{2.75cm}L{1.9cm}@{}}
     \toprule
     \textbf{Family} & \textbf{Input} & \textbf{Native output} & \textbf{VaR from it} &
@@ -1040,18 +1043,21 @@
       Tail family imposed & Shape assumption \\
     Quantile regression & Features & The quantile itself & Direct &
       Flat objective near $1\%$ & Identification \\
+    NN-$t$ & Features & Learned $\sigma_t$, assumed shape &
+      $-(\hat\mu + \hat\sigma_t q_{\hat\nu}(\alpha))$ &
+      Architecture picked on the sample & Selection slice \\
     Chronos-T5 & Price levels & Sample paths & Order statistic &
       Resolution floor at $1/N$ & Draw count \\
-    LLM, elicited & Serialised text & A stated number & Parse the reply &
+    LLM, elicited \newline {\tiny Claude Haiku 4.5, Qwen2.5-1.5B} & Serialised text & A stated number & Parse the reply &
       Passes every check, barely moves & Distinct values \\
-    LLM, sampled & Serialised text & $N$ completions & Order statistic &
+    LLM, sampled \newline {\tiny Qwen2.5-1.5B} & Serialised text & $N$ completions & Order statistic &
       The same floor, plus parsing & Draws and parser \\
     \bottomrule
   \end{tabular}
   \points{%
-      \item Six routes to the same number, the $1\%$ VaR.
+      \item Seven routes to the same number, the $1\%$ VaR.
       \item Each breaks in a way that still returns a plausible number, so the backtest runs as usual.
-      \item \textbf{First check} is what catches it beforehand, and none of them is a backtest.
+      \item \textbf{First check} is what catches it beforehand, and every one of them runs before the scoring does.
   }
 \end{frame}
 
@@ -1154,7 +1160,7 @@
   \begin{itemize}
     \item Breach counts of $2$, $3$, $6$ and $7$ all pass.
       \begin{itemize}
-        \item With five events expected, the test cannot tell them apart.
+        \item With five events expected, all four counts sit inside the acceptance region.
       \end{itemize}
     \item The two rejections had to miss by a factor of five and of seven.
       \begin{itemize}
@@ -1176,7 +1182,7 @@
         \begin{itemize}
           \item One model, Qwen2.5-1.5B, two ways of asking, same days and same parser.
         \end{itemize}
-      \item \cred{Neither is a valid $1\%$ forecast.}
+      \item \cred{Both breach far too often to be a $1\%$ forecast.}
         \begin{itemize}
           \item Kupiec rejects all ten runs, at $4.8\%$ to $13.2\%$.
         \end{itemize}
@@ -1189,13 +1195,13 @@
   \centering
   \includegraphics[width=0.644\textwidth]{s_vs_garch}
   \points{%
-      \item \cred{On four of five the test cannot separate them.}
+      \item \cred{On four of five markets the two score alike.}
         \begin{itemize}
           \item On the DAX, GARCH-$t$ is better at $p = 0.003$.
         \end{itemize}
-      \item Nowhere is the language model significantly ahead.
+      \item Matching the benchmark is the best result on offer here.
         \begin{itemize}
-          \item Level with the benchmark is the ceiling here.
+          \item On the remaining four markets the difference stays inside sampling noise.
         \end{itemize}
   }
   \quantlet{AIDA\_aug\_backtest}{\qlbase/quantlets/AIDA_aug_backtest}
@@ -1243,9 +1249,9 @@
   \centering
   \includegraphics[width=0.70\textwidth]{s_news}
   \points{%
-      \item \cred{Coverage cannot answer this question.}
+      \item \cred{Both runs breach on the same \textbf{3} days, so coverage is silent here.}
         \begin{itemize}
-          \item Both runs breach on the same \textbf{3} days: $p = 0.331$ for each.
+          \item $p = 0.331$ for each, against the same nominal $1\%$.
         \end{itemize}
       \item The loss uses all \textbf{447} covered days and falls \textbf{6.5\%}.
         \begin{itemize}
@@ -1260,13 +1266,13 @@
   \centering
   \includegraphics[width=0.644\textwidth]{s_news_assets}
   \points{%
-      \item Significant on the S\&P and the Nikkei, nothing detectable elsewhere.
+      \item Significant on the S\&P and the Nikkei; the other three sit inside noise.
         \begin{itemize}
           \item Five markets is five tests, so \textbf{Bonferroni} sets the bar at $0.01$. Both clear it.
         \end{itemize}
       \item \cred{Headlines help this model, on these markets, at this level.}
         \begin{itemize}
-          \item Nothing here reaches risk forecasting in general.
+          \item The claim stops at these five markets and this level.
         \end{itemize}
   }
   \quantlet{AIDA\_aug\_news}{\qlbase/quantlets/AIDA_aug_news}
@@ -1289,11 +1295,11 @@
       \end{itemize}
     \item \textbf{Temporal contamination}: the pretraining corpus already holds the outcome.
       \begin{itemize}
-        \item The prompt therefore carries no ticker, no dates and no price levels.
+        \item The prompt therefore arrives stripped of ticker, dates and price levels.
       \end{itemize}
     \item The first three you can test for.
       \begin{itemize}
-        \item \cred{The fourth you cannot, because you cannot read the corpus.}
+        \item \cred{The fourth stays open, because the corpus is closed.}
       \end{itemize}
   \end{itemize}
 \end{frame}
@@ -1323,11 +1329,11 @@
         \begin{itemize}
           \item \textbf{NN-$t$}, fitted.
             \begin{itemize}
-              \item Never rejected on five markets.
+              \item Passes coverage on all five markets.
             \end{itemize}
           \item \textbf{Claude Haiku 4.5}, prompted.
             \begin{itemize}
-              \item Never rejected in three configurations of four.
+              \item Three of its four configurations pass on all five.
             \end{itemize}
         \end{itemize}
       \end{block}
@@ -1341,7 +1347,7 @@
             \end{itemize}
           \item \textbf{Qwen2.5-1.5B}, open weights.
             \begin{itemize}
-              \item Both runs rejected everywhere, at $4.8\%$ to $13.2\%$.
+              \item Rejected on every market, at $4.8\%$ to $13.2\%$.
             \end{itemize}
         \end{itemize}
       \end{alertblock}
@@ -1357,7 +1363,7 @@
       \end{itemize}
     \item The two that pass are level with the benchmark.
       \begin{itemize}
-        \item On loss, the Diebold--Mariano test cannot separate them from GARCH-$t$.
+        \item On loss, the Diebold--Mariano test puts them level with GARCH-$t$.
         \item On coverage, Kupiec rejects reliably only past a realised rate of $2.50\%$.
       \end{itemize}
   \end{itemize}
@@ -1375,7 +1381,7 @@
     \item \textbf{Write two forecasts yourself, audit an artefact, then score the whole
           panel.}
       \begin{itemize}
-        \item One notebook, in Colab, on your own laptop. Nothing needs a key.
+        \item One notebook, in Colab, on your own laptop, running on open weights.
       \end{itemize}
   \end{itemize}
   \vspace{0.2em}
@@ -1394,7 +1400,7 @@
       \end{itemize}
     \item Backtests, Diebold--Mariano and disagreement, on the full precomputed panel.
       \begin{itemize}
-        \item Five assets, ten models, $500$ days, without waiting for any of it.
+        \item Five assets, ten models, $500$ days, all precomputed.
       \end{itemize}
   \end{enumerate}
   \vspace{0.4em}
@@ -1651,7 +1657,7 @@
     \item If every desk runs a similar model, every desk de-risks the same morning.
     \item Shared \textbf{pretraining} is a new channel for that.
       \begin{itemize}
-        \item The same weights behind many vendors, and no way to tell from outside.
+        \item The same weights behind many vendors, invisible from outside.
       \end{itemize}
     \item Measured on \textbf{changes}: $\lambda_1/N = 0.20$ against $0.11$.
       \begin{itemize}

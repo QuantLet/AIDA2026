@@ -743,7 +743,7 @@ def fig_news(bench, models):
     a2.set_ylabel("Cumulative pinball\nloss difference")
     # The differential and its p-value are in the slide caption; the title says which
     # comparison the curve is, and stops there.
-    a2.set_title("News minus no-news", fontsize=11.7)
+    a2.set_title("With headlines minus without", fontsize=11.7)
     datefmt(a2)
     save(fig, "s_news")
 
@@ -981,7 +981,7 @@ def fig_sampling():
     a2.set_xticks(x)
     a2.set_xticklabels(ticks, fontsize=7.8)
     a2.set_ylabel("Breach rate (%)")
-    a2.set_title("And neither one covers", fontsize=10.1)
+    a2.set_title("Both breach far more than 1%", fontsize=10.1)
     a2.grid(axis="x", visible=False)
 
     fig_legend(fig, a2, ncol=2)
@@ -1072,7 +1072,7 @@ def fig_coherent():
     a2.set_xticklabels([f"VaR at {ALPHA:.0%}", f"ES at {ALPHA:.0%}"])
     a2.set_ylim(0, max(sums + ports) * 1.22)
     a2.set_ylabel("Capital (loss units)")
-    a2.set_title("Merging must not raise it", fontsize=10.1)
+    a2.set_title("Sub-additivity caps it at the sum", fontsize=10.1)
     a2.grid(axis="x", visible=False)
 
     fig_legend(fig, [a1, a2], ncol=2, fontsize=9.4)
@@ -1187,7 +1187,7 @@ def fig_nnarch():
     # the shape is fitted alongside the network, not through it
     ax.text(7.30, 0.72, r"$\hat\mu,\ \hat\nu$   the shape", ha="left", va="center",
             fontsize=13, color=al.IDA_RED)
-    ax.text(7.30, 0.34, "two scalars, fitted with it but outside it", ha="left",
+    ax.text(7.30, 0.34, "two scalars, fitted jointly, outside the network", ha="left",
             va="center", fontsize=10, color=al.IDA_RED)
 
     # the two colours meet only here
@@ -1248,7 +1248,7 @@ def fig_chronosarch():
 
     ax.text(xs[2], 2.25, "Chronos-T5 mini, pretrained elsewhere", ha="center",
             fontsize=12, color=al.MAIN_BLUE, weight="bold")
-    ax.text(xs[2], 0.42, "no parameter here is fitted on this asset", ha="center",
+    ax.text(xs[2], 0.42, "every parameter arrives fitted on other series", ha="center",
             fontsize=10.5, color=GREY)
 
     save(fig, "s_chronosarch")
@@ -1257,8 +1257,8 @@ def fig_chronosarch():
 def fig_llmarch():
     """The language-model route to a quantile, drawn end to end.
 
-    Nothing in the stack is a risk model. The number is a substring of generated text,
-    and the only thing that makes it a quantile is the sentence asking for one.
+    Every stage in the stack is general purpose. The number is a substring of generated
+    text, and what makes it a quantile is the sentence asking for one.
     """
     fig, ax = plt.subplots(figsize=FIG_LLMARCH)
     ax.set_xlim(0, 12.6)
@@ -1281,7 +1281,7 @@ def fig_llmarch():
 
     ax.text(xs[2], 2.80, "Qwen2.5-1.5B-Instruct, decoder-only", ha="center",
             fontsize=12, color=al.MAIN_BLUE, weight="bold")
-    ax.text(xs[2], 1.06, "No layer here targets a quantile. The request does.",
+    ax.text(xs[2], 1.06, "Every layer is general purpose. The request makes it a quantile.",
             ha="center", fontsize=11.5, color=al.IDA_RED)
 
     save(fig, "s_llmarch")
@@ -1634,7 +1634,7 @@ def fig_pinball(rets):
     a1.annotate(r"slope $\alpha$", xy=(1.2, 0.30), fontsize=9.4, color=GREY)
     a1.set_xlabel(r"Forecast error $r_t - q_t$ (%)")
     a1.set_ylabel("Pinball loss")
-    a1.set_title("The arms are not symmetric", fontsize=11.7)
+    a1.set_title("The two arms have different slopes", fontsize=11.7)
 
     for lev, c in ((ALPHA, al.IDA_RED), (ALPHA_SECONDARY, al.MAIN_BLUE)):
         q0 = float(np.quantile(r, lev))

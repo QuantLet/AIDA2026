@@ -2,7 +2,7 @@ Name of QuantLet: 'AIDA_aug_chronos'
 
 Published in: 'AIDA Summer School 2026 - AI in Financial Risk Modelling (August course)'
 
-Description: 'Chronos zero-shot VaR through both heads. The quantile head is asked for levels below its trained grid and returns the clamped value, which the script records rather than repairs; the sampling head supplies the genuine tail quantile.'
+Description: 'Chronos-T5 zero-shot VaR: the last 512 closing prices are handed to the pretrained model, 500 paths are sampled for the next day, and the tail quantile is read off the draws as an order statistic.'
 
 Keywords: 'value-at-risk, backtesting, kupiec, christoffersen, diebold-mariano, foundation-model, large-language-model, zero-shot, risk-management, financial-econometrics'
 
@@ -12,4 +12,4 @@ Submitted: '2026-07-31'
 
 Datafile: 'data/lab/returns_*.csv'
 
-Output: 'precomputed/chronos_{bolt,t5}_*.csv'
+Output: 'precomputed/chronos_t5_*.csv'

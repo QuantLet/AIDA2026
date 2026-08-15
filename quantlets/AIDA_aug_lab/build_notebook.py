@@ -51,6 +51,11 @@ md(r"""
 
 **AIDA Summer School 2026 — coding laboratory (2 hours)**
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/QuantLet/AIDA2026/blob/main/notebook/AIDA_Risk_Lab.ipynb)
+
+Click the badge. Colab loads this file alone, and the first code cell clones the
+rest of the course into the runtime. Everything runs on open weights and shipped data.
+
 One question, four kinds of answer.
 
 $$\Pr\left(r_{t} < -\widehat{\mathrm{VaR}}_{t}(\alpha)\right) = \alpha ,
@@ -66,8 +71,7 @@ Every model in this notebook sees the same information and is scored on the same
 | **Historical simulation** | sort the last 250 days, read off the 3rd worst |
 | **GARCH(1,1)-$t$** | a variance recursion, scaled by a Student-$t$ quantile |
 | **NN vol + $t$** | a small network learns the scale, the tail shape stays parametric |
-| **Chronos-Bolt** | a pretrained time-series model with a quantile head, zero-shot |
-| **Chronos-T5** | the same family, but it samples paths, so any quantile can be read |
+| **Chronos-T5** | pretrained on other series, samples paths, any quantile read off them |
 | **LLM** | the return series written out as text, the quantile asked for in words |
 
 You will find out which of them is *calibrated*, which is a different question from
@@ -76,58 +80,51 @@ which of them is sophisticated.
 **Sign convention.** VaR is reported as a positive loss. Day $t$ is a breach when
 $r_t < -\mathrm{VaR}_t$. Charts are drawn on the return axis with the tail on the left.
 """)
-COLAB = ("https://colab.research.google.com/github/QuantLet/AIDA2026/blob/main/"
-         "notebook/AIDA_Risk_Lab.ipynb")
-
-md(f"""
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)]({COLAB})
-
-*Click the badge to open this notebook in Google Colab. Nothing needs to be installed
-locally, and no API key is required at any point.*
-""")
-
 md(r"""
 ### How long the laboratory takes
 
-Sections 1 to 3 were **measured on Colab** on 2026-08-06. The rest are measured on one
-CPU (Apple M5 Max) and multiplied by four, which is roughly how much slower a free
-two-vCPU Colab runtime is on this kind of work. Colab caches nothing between sessions,
-so budget the downloads every time.
+The model downloads were **measured on Colab** on 2026-08-06. Everything else was timed
+here and multiplied by four, which is roughly how much slower a free two-vCPU Colab
+runtime is on this kind of work: the pure-computation cells finish in **under two seconds
+in total**, so the clock is downloads and your own thinking. Colab starts each session
+clean, so budget the downloads every time.
 
 | section | compute | of which download |
 |---|---|---|
 | 1. Setup and reproducibility checks | ~10 s | ~20 MB, the repository |
 | 1.1 Power | seconds | — |
 | 2. Historical simulation | seconds | — |
-| 3. Chronos-Bolt capability audit | ~1.5 min | ~35 MB, `chronos-bolt-tiny` |
-| 4. Chronos-T5 sampling resolution, 12 dates x 500 paths | ~2 min | ~80 MB, `chronos-t5-mini` |
-| 5. LLM parsing and logical checks | seconds | shipped as data |
-| 6. Dated versus dated+news | seconds | shipped as data |
-| 6.1 Open weights live, 16 dates | **~11 min** on CPU, ~1 min on a T4 | 3.1 GB, `Qwen2.5-1.5B` |
-| 7. Coverage, loss and disagreement | seconds | — |
+| 3. Chronos-T5 sampling resolution, 12 dates x 500 paths | ~2 min | ~80 MB, `chronos-t5-mini` |
+| 4. LLM parsing and logical checks | seconds | shipped as data |
+| 5. Dated versus dated+news | seconds | shipped as data |
+| 5.1 Open weights live, 16 dates | **~11 min** on CPU, ~1 min on a T4 | 3.1 GB, `Qwen2.5-1.5B` |
+| 6. Coverage, loss and disagreement, and the three exercises | seconds | — |
+| 6.4 Your group's asset, rerun end to end | seconds | — |
 
-**Compute is about 18 minutes of the two hours**, and 11 of those are the optional
-live open-weights cell. Everything else is reading, writing and
-arguing about what the numbers mean, which is the point of the session. Two consequences
+**Compute is about 14 minutes of the two hours**, and 11 of those are the optional live
+open-weights cell. The rest of the time is yours: three functions to write in sections 2
+and 6.2, your group's own market in 6.5, and the five questions at the end. Budget
+roughly 40 minutes for those, and the remainder for arguing about what the numbers mean,
+which is the point of the session. Two consequences
 worth planning around:
 
-- **Start section 6.1 early** if you want the live open-weights run, or set
+- **Start section 5.1 early** if you want the live open-weights run, or set
   `RUN_OPEN_LIVE = False` and use the shipped file. The 3.1 GB download is the single
   longest wait in the laboratory.
-- Everything marked `SLOW` has a precomputed fallback that loads in under a second, so a
-  failed download never blocks the rest of the notebook.
+- Everything marked `SLOW` has a precomputed fallback that loads in under a second, so the
+  rest of the notebook survives a failed download.
 """)
 
 md(r"""
 ## 1. Setup and reproducibility checks
 
 Run this cell first. Inside the course repository it uses the files next to it; on
-Colab it clones the public repository, which takes a few seconds and needs nothing from
-you. If GitHub is unreachable it falls back to asking for `aida_lab_data.zip`.
+Colab it clones the public repository, which takes a few seconds and runs unattended. If
+GitHub is unreachable it falls back to asking for `aida_lab_data.zip`.
 
-**You need no API key at any point.** The language-model forecasts and the news
-headlines are shipped as data. The only thing fetched at run time is the Chronos model
-itself, from Hugging Face, which is a public download.
+**Everything here runs on open weights and shipped data.** The language-model forecasts
+and the news headlines arrive as files. The one thing fetched at run time is the Chronos
+model, a public download from Hugging Face.
 """, "required", mins="10 seconds")
 
 code(r"""
@@ -165,6 +162,15 @@ bench   = al.load_benchmarks(ASSET, level=ALPHA)
 print(f"{ASSET}: {len(returns)} daily observations, "
       f"{returns.index[0].date()} to {returns.index[-1].date()}")
 print(f"test span: {bench.index[0].date()} to {bench.index[-1].date()}, {len(bench)} days")
+
+# What you are actually running on. A foundation-model result belongs to an artefact
+# and an interface, which is the argument of the whole session -- so record the
+# interface. Quote these lines if a number here disagrees with the lecture.
+import numpy, scipy, matplotlib
+print(f"{chr(10)}python {sys.version.split()[0]} | colab {IN_COLAB}")
+for _m in (numpy, pd, scipy, matplotlib):
+    print(f"  {_m.__name__:<12} {_m.__version__}")
+
 bench.head()
 """)
 
@@ -174,13 +180,13 @@ md(r"""
 A backtest is a hypothesis test, and a hypothesis test needs events. At
 $\alpha = 1\%$ a 500-day span expects **five** breaches. Five. The cell below computes
 the smallest true breach rate Kupiec's test can reject, as a function of sample length,
-and the answer for our span is sobering: it detects a *doubling* of the breach rate and
-nothing finer.
+and the answer for our span is blunt: the smallest deviation it can detect is a *doubling*
+of the breach rate.
 
 This is the binding constraint of the whole laboratory and it is not hidden anywhere in
-the results. Read every verdict in section 7 through it: a model that "passes" at 1% on
+the results. Read every verdict in section 6 through it: a model that "passes" at 1% on
 500 days has cleared a low bar, and the classical models are also shown on the certified
-5541-day run at the end of section 7, where the bar is much higher.
+5541-day run at the end of section 6, where the bar is much higher.
 """, "required", mins="seconds")
 
 code(r"""
@@ -209,7 +215,7 @@ print(f"\n  our span is 500 days -> {detectable(500) / ALPHA:.1f}x nominal is th
 md(r"""
 ## 2. The historical-simulation benchmark
 
-No model, no parameters, no distribution. Sort the window and read off the quantile.
+One rule, one number: sort the window and read off the quantile.
 
 $$\widehat{\mathrm{VaR}}^{\mathrm{HS}}_{t}(\alpha) = -\,\widehat{Q}_{\alpha}
 \!\left(r_{t-W},\dots,r_{t-1}\right), \qquad W = 250$$
@@ -263,130 +269,16 @@ window sit so far out in 2023?
 """)
 
 md(r"""
-## 3. Chronos-Bolt: a capability audit
-
-Chronos is pretrained on a large corpus of time series and applied here with **no
-fitting on this asset at all**. Two heads, and the difference between them is the
-lesson of this section.
-
-- **Chronos-Bolt** has a *quantile head*: it outputs a fixed grid of quantiles directly.
-  Small and fast enough to run live.
-- **Chronos-T5** *samples paths*: any quantile can be read off the sample distribution.
-
-**It is fed prices, not returns.** Chronos is trained on series levels. Given the last
-512 closing prices it forecasts the next one, and the implied return is recovered as
-$r = 100\log(\hat P_t / P_{t-1})$, a monotone transform, so a price quantile maps to
-the return quantile of the same level. Feeding it the return series directly was tried
-in the certified pipeline: returns are near-zero-mean noise and the model collapses to
-a predictive standard deviation of 0.14 against a realised 1.22.
-""", "required", mins="1.5 minutes")
-
-code(r"""
-!pip install -q chronos-forecasting
-
-# No token is needed here; this stops Colab asking for one. If it asks anyway: Cancel.
-try:
-    from huggingface_hub.utils import _auth
-    _auth._IS_GOOGLE_COLAB_CHECKED = True
-    _auth._GOOGLE_COLAB_SECRET = None
-except Exception:
-    pass
-""")
-
-code(r"""
-import torch, warnings
-from chronos import BaseChronosPipeline
-
-px    = returns["close"].values.astype(float)
-pos   = {d: i for i, d in enumerate(returns.index)}
-idx   = np.array([pos[d] for d in bench.index])
-CTX   = 512
-
-bolt = BaseChronosPipeline.from_pretrained(
-    "amazon/chronos-bolt-tiny", device_map="cpu", dtype=torch.float32)
-
-# Ask for the levels we actually care about.
-LEVELS = [0.01, 0.05, 0.10, 0.50, 0.90]
-ctx = torch.tensor(np.stack([px[t - CTX:t] for t in idx[:64]]), dtype=torch.float32)
-with torch.no_grad():
-    q, _ = bolt.predict_quantiles(ctx, prediction_length=1, quantile_levels=LEVELS)
-
-print("price quantiles for the first forecast date:")
-for lvl, v in zip(LEVELS, q[0, 0].numpy()):
-    print(f"  q{lvl:<5} = {v:.4f}")
-""")
-
-md(r"""
-**Look at the warning, and look at the numbers.**
-
-Chronos-Bolt was trained on the quantile grid $0.1, 0.2, \dots, 0.9$. Asked for 0.01 it
-does not extrapolate: it returns the value at the lowest level it was trained on. The
-1%, 5% and 10% entries above are the same number.
-
-At our reported level this is a **factor-of-ten** substitution. A "1% VaR" that is
-silently the 10% quantile will be breached roughly ten times as often as it claims, and
-the pipeline that produced it raised no error at any point.
-
-Verify it rather than taking it on trust.
-""")
-
-code(r"""
-qq = q[:, 0, :].numpy()
-i01, i05, i10 = LEVELS.index(0.01), LEVELS.index(0.05), LEVELS.index(0.10)
-same = np.isclose(qq[:, i01], qq[:, i10], rtol=0, atol=0) & \
-       np.isclose(qq[:, i05], qq[:, i10], rtol=0, atol=0)
-print(f"dates where q01 == q05 == q10 exactly: {same.sum()} of {len(same)}")
-""")
-
-md(r"""
-**This is the single most important cell in the notebook.**
-
-A pipeline that requested `quantile_levels=[0.01]`, took the number, and called it a 1%
-VaR would have produced a full set of results, a leaderboard position and a plot — all
-of them silently reporting the 10% quantile, a **factor of ten** away. Nothing would have failed. The backtest
-would have shown a suspiciously high breach rate and the natural reading would have been
-"the foundation model is badly calibrated in the tail", which is a claim about the model
-rather than about the pipeline.
-
-Two things follow, and they are the transferable part of this laboratory:
-
-1. **Ask a model what it can answer, not just what you want.** The trained quantile grid
-   is a property of the artefact, as much as its parameter count.
-2. **Check the output, not the call.** The call succeeded. Only the values reveal it.
-
-We therefore run Chronos-Bolt at its lowest unclamped level, 10%, and get the 1%
-quantile from the sampling head instead.
-""")
-
-code(r"""
-# Chronos-Bolt at 10%, the lowest level it was trained on, over the full test span.
-rows = []
-for i in range(0, len(idx), 64):
-    chunk = idx[i:i + 64]
-    ctx = torch.tensor(np.stack([px[t - CTX:t] for t in chunk]), dtype=torch.float32)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        with torch.no_grad():
-            qh, _ = bolt.predict_quantiles(ctx, prediction_length=1, quantile_levels=[0.10])
-    for j, t in enumerate(chunk):
-        r_q = 100.0 * np.log(max(float(qh[j, 0, 0]), 1e-8) / px[t - 1])
-        rows.append((bench.index[i + j], -r_q))
-
-bolt10 = pd.Series(dict(rows), name="Chronos-Bolt").rename_axis("date")
-print(f"Chronos-Bolt 10% VaR: mean {bolt10.mean():.2f}, {len(bolt10)} dates")
-""")
-
-md(r"""
-### 4. Chronos-T5: the sampling-resolution experiment
+## 3. Chronos-T5: the sampling-resolution experiment
 
 The sampling head draws `num_samples` price paths and the quantile is read off the
 sample distribution. The sample count sets the noise floor, and at our level it is the
 binding constraint: with 500 draws, **five** fall below the 1% quantile. The library
-default of 20 draws cannot express a 1% quantile at all — there is no draw below it.
+default of 20 draws puts its lowest draw above the 1% quantile, so that level is out of reach.
 
 So the Chronos-T5 number is an order statistic of five points. That is a modelling
-choice with the same standing as the window length in historical simulation, and it is
-reported about as often as never.
+choice with the same standing as the window length in historical simulation, and papers
+report it far less often.
 
 It costs about nine seconds per forecast on a Colab CPU, so the full 500-day run is
 precomputed
@@ -401,6 +293,36 @@ if t5_pre is not None:
 else:
     t5 = None
     print("no precomputed file found; run the live cell below with a larger N_LIVE")
+""")
+
+code(r"""
+# Everything the live cell below needs. Deliberately unpinned: Colab ships its own torch
+# and forcing the local pin on top of it is how a laboratory breaks. The version that
+# actually resolves is printed, and the result is a property of THAT build.
+!pip install -q chronos-forecasting
+
+# No token is needed here; this stops Colab asking for one. If it asks anyway: Cancel.
+try:
+    from huggingface_hub.utils import _auth
+    _auth._IS_GOOGLE_COLAB_CHECKED = True
+    _auth._GOOGLE_COLAB_SECRET = None
+except Exception:
+    pass
+""")
+
+code(r"""
+import torch, warnings
+import chronos, transformers
+from chronos import BaseChronosPipeline
+
+print(f"chronos-forecasting {chronos.__version__} | transformers "
+      f"{transformers.__version__} | torch {torch.__version__}")
+
+# The context the model reads, and where each forecast date sits in the price series.
+px  = returns["close"].values.astype(float)
+pos = {d: i for i, d in enumerate(returns.index)}
+idx = np.array([pos[d] for d in bench.index])
+CTX = 512
 """)
 
 code(r"""
@@ -439,14 +361,14 @@ a sampling model to three decimal places?
 """)
 
 md(r"""
-## 5. The LLM: output parsing and logical checks
+## 4. The LLM: output parsing and logical checks
 
 The method is the one in Pele et al. (2026), *In the Beginning was the Word: LLM-VaR
 and LLM-ES* (Expert Systems with Applications). The return series is written out as
 text, the model is asked for the 1% and 5% quantiles of tomorrow's return, and the
 number is
-read out of the reply. There is no VaR head and no fine-tuning; the forecast comes from
-prompted generation.
+read out of the reply. The architecture is unchanged and the weights are untouched; the
+forecast comes from prompted generation alone.
 
 Four information sets are shipped, for every asset:
 
@@ -455,19 +377,24 @@ Four information sets are shipped, for every asset:
 | `series` | the last 60 returns, anonymised |
 | `series+state` | the same, plus realised volatility, drawdown and the HS VaR |
 | `dated` | the same returns, plus the asset name and the date |
-| `dated+news` | the same, plus the real headlines available at $t-1$ (section 6) |
+| `dated+news` | the same, plus the real headlines available at $t-1$ (section 5) |
 
-**Why two of them are anonymised.** The model's training data covers these dates. Tell
-it "S&P 500, 5 August 2024" and a good forecast may be recall rather than inference,
-and recall is not available for tomorrow. The `dated` configuration exists to *measure*
-that effect — and to serve as the control for the news test in section 6.
+In every table and figure below they carry an `LLM-` prefix, so `series` appears as
+`LLM-series`. All four are the same weights, Claude Haiku 4.5, asked four different
+ways; only the prompt changes.
+
+**Why two of them are anonymised.** The weights were trained on text that already
+covers 2023 and 2024. Given "S&P 500, 5 August 2024", the model can remember what
+happened instead of forecasting it, while a live forecast has only the past to work with,
+so a score won that way would fade out of sample. The `dated` configuration exists to *measure*
+that effect — and to serve as the control for the news test in section 5.
 
 **The headlines are real.** They come from EODHD, not from anyone's imagination: a
 headline file written to match the returns would manufacture the relation it claims to
-test. How they are aligned to the forecast dates is section 6, and it is the part
+test. How they are aligned to the forecast dates is section 5, and it is the part
 worth arguing with.
 
-This section works with the first two. The last two are section 6's business.
+This section works with the first two. The last two are section 5's business.
 """, "required", mins="seconds")
 
 code(r"""
@@ -492,7 +419,7 @@ Two failure counts are printed above and both are results.
 An **unparseable** reply is an engineering failure: the model wrote prose where JSON was
 asked for. A reply with a **non-negative quantile** is worse, because it parses. It
 asserts that the worst 5% of days is a gain, and it would flow into every downstream
-number without tripping anything. Neither is repaired here; both are counted.
+number without tripping anything. Both are counted here, and both are left as they came.
 """)
 
 code(r"""
@@ -506,10 +433,10 @@ if len(llm) == 2:
 """)
 
 md(r"""
-### 6. Dated versus dated+news: does real text move the number?
+## 5. Dated versus dated+news: does real text move the number?
 
-The two configurations above contain no words. This one does: real headlines from EODHD,
-attached to each forecast date under one rule.
+The two configurations above are numbers only. This one adds words: real headlines from
+EODHD, attached to each forecast date under one rule.
 
 > A headline may enter the prompt for date $t$ only if it was published at or before the
 > **as-of cutoff** on $t-1$ — the previous decision point, 20:00 UTC.
@@ -518,7 +445,7 @@ attached to each forecast date under one rule.
 alongside it, and audits both. This matters more than the price alignment: a price series
 can only leak by being shifted, whereas a news series leaks the moment an article
 published at 22:00 describing the day's close is handed to a model asked to forecast that
-close. Nothing in the reply would look wrong.
+close. The reply would still look perfectly ordinary.
 
 **The comparison is against `dated`, not against `series`.** Headlines reveal the period
 on their own — they name companies, events and numbers that place the text in time. So
@@ -629,17 +556,17 @@ you would use to separate the two.
 """)
 
 md(r"""
-### 6.1 The same experiment, with a model you run yourself
+### 5.1 The same experiment, with a model you run yourself
 
-Everything above came from a commercial endpoint. If you have a key, section 5 is
-reproducible; if you do not, it is a table someone else computed. So the same prompt is
+Everything above came from a commercial endpoint. With a key that part is
+reproducible for you; without one it is a table someone else computed. So the same prompt is
 also put through a model with **open weights**, downloaded from Hugging Face exactly the
 way Chronos was, running on this machine.
 
 - `Qwen2.5-1.5B-Instruct` — about 3 GB, roughly a second per forecast on a Colab GPU
   and a few seconds on CPU. This is the leg you run yourself.
 - `Qwen2.5-3B-Instruct` — twice the size, shipped precomputed. It is here to answer one
-  question: **does a larger model give a more informative VaR?** The next cell counts
+  question: **does a larger model give a VaR that moves with the market?** The next cell counts
   distinct outputs, which is where the answer shows up.
 
 The prompt, the JSON schema and the parser are **imported** from the commercial stage
@@ -680,7 +607,7 @@ for k, v in cand.items():
 """)
 
 md(r"""
-**Question 3b.** One of these models produces well-formed JSON, a correctly signed
+**Question 3b.** One of these models produces valid JSON, a correctly signed
 quantile and a correctly ordered pair on essentially every day — and is still useless.
 Which one, how did you tell, and which of the checks in the parser would have caught it?
 
@@ -694,12 +621,17 @@ N_OPEN = 16
 RUN_OPEN_LIVE = True
 
 if RUN_OPEN_LIVE:
+    # Unpinned for the same reason as the Chronos cell: Colab's own torch decides what
+    # fits. ../requirements-openweights.txt records the versions that produced the
+    # shipped panel (transformers 5.14.1, accelerate 1.14.0, torch 2.13.0 on mps).
     !pip install -q transformers accelerate
-    import torch
+    import torch, transformers, accelerate
     from transformers import AutoTokenizer, AutoModelForCausalLM
 
     MID = "Qwen/Qwen2.5-1.5B-Instruct"
     dev = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"transformers {transformers.__version__} | accelerate "
+          f"{accelerate.__version__} | torch {torch.__version__} | device {dev}")
     tok = AutoTokenizer.from_pretrained(MID, padding_side="left")
     tok.pad_token = tok.pad_token or tok.eos_token
     mod = AutoModelForCausalLM.from_pretrained(
@@ -756,7 +688,7 @@ endpoint you cannot inspect.
 """)
 
 md(r"""
-## 7. Coverage, pinball loss and disagreement
+## 6. Coverage, pinball loss and disagreement
 
 Three quantities, and they answer different questions.
 
@@ -785,7 +717,6 @@ models = {
     "HS-250":           hs250,
     "GARCH-t":          bench["GARCH-t"],
     "NN-t":             bench["NN-t"],
-    "Chronos-Bolt":     bolt10,      # NOTE: this is a 10% forecast, see below
     **({"Chronos-T5":   t5} if t5 is not None else {}),
     **llm,
 }
@@ -793,19 +724,6 @@ models = {
 bt = al.backtest_table(bench["ret"], models, alpha=ALPHA)
 lb = al.leaderboard(bt, alpha=ALPHA)
 lb.round(4)
-""")
-
-md(r"""
-**Chronos-Bolt is scored against the wrong nominal level on purpose.** Its number is a
-10% quantile; the table judges every column at 1%. It should look badly calibrated, and
-it is not a defect of the model: it is what happens when a forecast is used at a level
-the artefact cannot produce. Score it at its own level to see the difference.
-""")
-
-code(r"""
-bt10 = al.backtest_table(bench["ret"], {"Chronos-Bolt": bolt10}, alpha=0.10)
-print("Chronos-Bolt judged at its own 10% level:")
-print(bt10.round(4).to_string(index=False))
 """)
 
 code(r"""
@@ -816,7 +734,88 @@ plt.tight_layout(); plt.show()
 """)
 
 md(r"""
-### 7.1 Ranking against calibration: is the gap real?
+### 6.1 Every forecast on one axis
+
+Before any test, look at them. Nine answers to the same question, on the same days,
+plotted together. The spread is the result the rest of this section quantifies.
+""", "required", mins="seconds")
+
+code(r'''
+fig, ax = plt.subplots(figsize=(12, 4.6))
+ax.plot(bench.index, bench["ret"], lw=0.5, color="#3F4B57", alpha=0.55,
+        label="realised return")
+for name, v in models.items():
+    v = v.dropna()
+    ax.plot(v.index, -v, lw=1.1, label=name)
+ax.set_ylabel("return and $-$VaR(1%), %")
+ax.set_title(f"{ASSET}: {len(models)} answers to one question")
+ax.legend(ncol=4, fontsize=8, loc="lower center", bbox_to_anchor=(0.5, -0.42))
+ax.grid(alpha=0.3)
+plt.tight_layout(); plt.show()
+
+print("mean threshold, lowest to highest:")
+for name, v in sorted(models.items(), key=lambda kv: kv[1].dropna().mean()):
+    print(f"  {name:24s} {v.dropna().mean():5.2f}")
+''')
+
+md(r"""
+The line closest to zero is the one that will breach most often: a smaller threshold is
+crossed more easily. Check the ordering above against the coverage column, and note that
+the two do not have to agree.
+""", "interpret")
+
+md(r"""
+### 6.2 Two audits you write yourself
+
+The lecture claimed two things a backtest cannot see. Both are a couple of lines, and
+you should write them rather than take them on trust.
+
+**The distinct-value count.** A forecast that repeats yesterday's number is not thereby
+invalid: historical simulation repeats more than any language model here, for a reason
+you can write down. The count tells you which forecasts to go and look at.
+
+**The Kupiec statistic.** You have used its verdict all afternoon. Write the likelihood
+ratio once, so the power argument is about an expression you have seen.
+""", "required", mins="10 minutes")
+
+code(r'''
+# EXERCISE 2. Share of days carrying a distinct forecast, as a percentage.
+def distinct_share(v, places=4):
+    # v is a pandas Series of daily VaR forecasts.
+    return ...        # <-- your code here
+
+
+for name, v in sorted(models.items()):
+    v = v.dropna()
+    print(f"{name:24s} yours: {distinct_share(v)!s:>8.8}"
+          f"   reference: {100 * v.round(4).nunique() / len(v):5.1f}%"
+          f"   ({v.round(4).nunique()} of {len(v)})")
+''')
+
+md(r"""
+Historical simulation should sit at the bottom and GARCH-$t$ at the top. If your
+language-model columns are near the bottom too, that is the audit the lecture ran.
+""", "interpret")
+
+code(r'''
+# EXERCISE 3. Kupiec's unconditional-coverage statistic.
+#   LR_UC = -2 log [ (1-a)^(T-x) a^x / ( (1-x/T)^(T-x) (x/T)^x ) ],  chi2 with 1 df.
+def my_kupiec(x, T, alpha=ALPHA):
+    # x breaches out of T days. Return the statistic and its p-value.
+    return ...        # <-- your code here
+
+
+for name in ("HS", "GARCH-t", "NN-t"):
+    v = models[name].dropna()
+    x = int((bench["ret"].reindex(v.index) < -v).sum())
+    print(f"{name:10s} {x:3d} breaches of {len(v)}   yours: {my_kupiec(x, len(v))}")
+print("\nreference, from the table above:")
+print(bt[bt["model"].isin(["HS", "GARCH-t", "NN-t"])][["model", "observed", "p_uc"]]
+      .to_string(index=False))
+''')
+
+md(r"""
+### 6.3 Ranking against calibration: is the gap real?
 
 A leaderboard is an ordering. Whether the gap between two rows is larger than sampling
 noise is a separate question, and the Diebold–Mariano test on the loss differential is
@@ -853,7 +852,7 @@ what would you say about the other?
 """)
 
 md(r"""
-### 7.2 How much do the models actually disagree?
+### 6.4 How much do the models actually disagree?
 
 Different names, different vendors, different training corpora. That does not make them
 independent forecasts. The daily spread is the quantity that tells you whether averaging
@@ -867,13 +866,11 @@ This is the idea behind SYNCRISK: correlated risk *assessments* are themselves a
 of systemic risk, because everyone de-risks on the same day.
 
 Measured over the nine forecasts of the primary comparison, so your numbers match the
-lecture slide exactly. Which set you measure is itself a modelling decision: adding
-Chronos-Bolt, which is a 10% forecast, would widen the band for a reason that has
-nothing to do with disagreement.
+lecture slide exactly. Which set you measure is itself a modelling decision.
 """, "optional", mins="seconds")
 
 code(r"""
-# The primary comparison, named rather than inherited: Chronos-Bolt is a 10% forecast
+# The primary comparison, named rather than inherited
 # and HS-250 duplicates a model already in the set.
 PRIMARY = ["HS", "GARCH-t", "NN-t", "Chronos-T5", "LLM-series", "LLM-series+state",
            "LLM-dated", "LLM-dated+news", "Open-1.5B"]
@@ -904,14 +901,54 @@ other? How would you tell the two cases apart from the numbers alone?
 """)
 
 md(r"""
+### 6.5 Your group's asset
+
+Everything so far ran on the asset in `ASSET`. The lecture's headline came from the
+S&P 500, and the question is whether it survives a different market.
+
+Change `ASSET` at the top of the notebook to your group's market, run the notebook again
+from section 1, and bring three numbers back to the room: how many models your market
+rejects, whether the ordering by loss is the same, and whether the news comparison still
+goes the same way.
+
+The five markets do not agree, and the disagreement is the result.
+""", "required", mins="20 minutes")
+
+code(r'''
+# A compact version of the whole afternoon, on one asset. Run it for your market, then
+# for a neighbouring group's, and put the two side by side.
+def score_asset(asset, alpha=ALPHA):
+    r = al.load_returns(asset)
+    b = al.load_benchmarks(asset, alpha)
+    m = {k: b[k] for k in ("HS", "GARCH-t", "NN-t") if k in b}
+    for cfg, k in [("series", "LLM-series"), ("dated", "LLM-dated"),
+                   ("dated_news", "LLM-dated+news")]:
+        d = al.load_precomputed(f"llm_{cfg}_{asset}_{MODEL}.csv")
+        if d is not None:
+            ok = d["raw_ok"] & d["sign_ok"] & d.get("order_ok", True)
+            m[k] = d.loc[ok].set_index("date")["var"]
+    t = al.load_precomputed(f"chronos_t5_{asset}.csv")
+    if t is not None:
+        m["Chronos-T5"] = t[np.isclose(t["level"], alpha)].set_index("date")["var"]
+    out = al.backtest_table(b["ret"], m, alpha=alpha)
+    out.insert(0, "asset", asset)
+    return out
+
+mine = score_asset(ASSET)
+print(mine[["asset", "model", "n", "observed", "rate_pct", "pinball", "p_uc"]]
+      .sort_values("pinball").round(4).to_string(index=False))
+print(f"\nrejected at 5%: {(mine['p_uc'] < 0.05).sum()} of {len(mine)} models")
+''')
+
+md(r"""
 ### Five questions to answer before you leave
 
 Write two or three sentences for each. They are the questions the lecture was built
 around, and the ones the report from your group should answer.
 
-1. **Pipeline validity.** You asked Chronos-Bolt for the 1% quantile and the call
-   succeeded. What evidence did you use to decide whether the returned number *was*
-   the 1% quantile, and what would you have concluded without that check?
+1. **Pipeline validity.** Every model returned a number for every day and the calls
+   all succeeded. What evidence did you use to decide whether those numbers were the
+   1% quantile, and what would you have concluded without that check?
 
 2. **Ranking against calibration.** Order the models by pinball loss, then by their
    Kupiec verdict. Are the two orderings the same? Which question does each answer, and
@@ -931,13 +968,13 @@ around, and the ones the report from your group should answer.
 """, "interpret")
 
 md(r"""
-## 8. What to take away, and the optional extension
+## 7. What to take away, and the optional extension
 
 1. **A zero-shot foundation model produces a number for any question you ask it.**
    Whether that number answers the question you asked is a separate matter, and the
-   Chronos-Bolt clamp is the cheap version of a failure that is usually expensive.
-2. **An LLM can state a VaR, and the statement can be well or badly formed.**
-   Count the replies that do not parse and the replies that parse into a nonsense sign,
+   distinct-value count is the cheapest check that can tell you.
+2. **An LLM can state a VaR, and the reply can be malformed in several ways.**
+   Count the replies that do not parse, and those that parse into a nonsense sign,
    before reading anything into the ones that survive.
 3. **Ranking and validation are different operations.** The pinball loss orders models;
    the coverage and independence tests decide whether any of them may be used. A model
@@ -947,8 +984,8 @@ md(r"""
 
 ### Extensions
 
-Everything below runs from the files you already have. **None of them needs an API key**
-— which is itself the point of the last one.
+Everything below runs from the files you already have, on open weights throughout, which
+is itself the point of the last one.
 
 - **Swap the asset.** All five carry the same models. Bitcoin is a different
   regime, the Nikkei's news coverage is half the S&P's, and the ranking is not stable
@@ -957,8 +994,8 @@ Everything below runs from the files you already have. **None of them needs an A
   file both carry it. Five expected breaches in 500 days: which tests still have the
   power to reject anything, and what does that do to the leaderboard?
 - **The one you cannot do, and why that matters.** The 1% extension above stops at the
-  LLM: asking the model for a 1% quantile is a *new set of 500 requests*, which you have
-  no key for. Historical simulation, GARCH and Chronos-T5 gave you a new level for free,
+  LLM: asking the model for a 1% quantile is a *new set of 500 requests* against a rented
+  endpoint. Historical simulation, GARCH and Chronos-T5 gave you a new level for free,
   because you hold the model. That asymmetry — a level costs nothing from a model you
   run, and a full re-run from a model you rent — belongs in any comparison of the two.
 """)

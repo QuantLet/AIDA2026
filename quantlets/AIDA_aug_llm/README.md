@@ -6,4 +6,6 @@ LLM-VaR through a commercial endpoint: the return series serialised as text, the
 - **Output:** precomputed/llm_*.csv
 - **Part of:** AIDA Summer School 2026 - AI in Financial Risk Modelling (August course)
 
+`AIDA_aug_llm.ipynb` shows the result without running anything: 1 figure(s) at the folder root and 23 data file(s) under `output/`.
+
 Reproduce with `../../run_all.sh` from the package root; this folder is the extracted, citable form of one stage.

@@ -2,7 +2,7 @@ Name of QuantLet: 'AIDA_aug_data'
 
 Published in: 'AIDA Summer School 2026 - AI in Financial Risk Modelling (August course)'
 
-Description: 'Carves the laboratory dataset out of the certified aida-risk run: five assets, a common 500-day test span, and the classical VaR forecasts that span traces to. Nothing is downloaded and nothing is simulated.'
+Description: 'Carves the laboratory dataset out of the certified aida-risk run: five assets, a common 500-day test span, and the classical VaR forecasts that span traces to. Everything is derived from files already on disk.'
 
 Keywords: 'value-at-risk, backtesting, kupiec, christoffersen, diebold-mariano, foundation-model, large-language-model, zero-shot, risk-management, financial-econometrics'
 

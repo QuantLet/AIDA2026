@@ -54,7 +54,7 @@ md(r"""
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/QuantLet/AIDA2026/blob/main/notebook/AIDA_Risk_Lab.ipynb)
 
 Click the badge. Colab loads this file alone, and the first code cell clones the
-rest of the course into the runtime. Nothing to install, and no key at any point.
+rest of the course into the runtime. Everything runs on open weights and shipped data.
 
 One question, four kinds of answer.
 
@@ -80,24 +80,14 @@ which of them is sophisticated.
 **Sign convention.** VaR is reported as a positive loss. Day $t$ is a breach when
 $r_t < -\mathrm{VaR}_t$. Charts are drawn on the return axis with the tail on the left.
 """)
-COLAB = ("https://colab.research.google.com/github/QuantLet/AIDA2026/blob/main/"
-         "notebook/AIDA_Risk_Lab.ipynb")
-
-md(f"""
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)]({COLAB})
-
-*Click the badge to open this notebook in Google Colab. Nothing needs to be installed
-locally, and no API key is required at any point.*
-""")
-
 md(r"""
 ### How long the laboratory takes
 
 The model downloads were **measured on Colab** on 2026-08-06. Everything else was timed
 here and multiplied by four, which is roughly how much slower a free two-vCPU Colab
-runtime is on this kind of work: every cell that touches no model runs in **under two
-seconds in total**, so the clock is downloads and your own thinking, nothing else. Colab
-caches nothing between sessions, so budget the downloads every time.
+runtime is on this kind of work: the pure-computation cells finish in **under two seconds
+in total**, so the clock is downloads and your own thinking. Colab starts each session
+clean, so budget the downloads every time.
 
 | section | compute | of which download |
 |---|---|---|
@@ -121,20 +111,20 @@ worth planning around:
 - **Start section 5.1 early** if you want the live open-weights run, or set
   `RUN_OPEN_LIVE = False` and use the shipped file. The 3.1 GB download is the single
   longest wait in the laboratory.
-- Everything marked `SLOW` has a precomputed fallback that loads in under a second, so a
-  failed download never blocks the rest of the notebook.
+- Everything marked `SLOW` has a precomputed fallback that loads in under a second, so the
+  rest of the notebook survives a failed download.
 """)
 
 md(r"""
 ## 1. Setup and reproducibility checks
 
 Run this cell first. Inside the course repository it uses the files next to it; on
-Colab it clones the public repository, which takes a few seconds and needs nothing from
-you. If GitHub is unreachable it falls back to asking for `aida_lab_data.zip`.
+Colab it clones the public repository, which takes a few seconds and runs unattended. If
+GitHub is unreachable it falls back to asking for `aida_lab_data.zip`.
 
-**You need no API key at any point.** The language-model forecasts and the news
-headlines are shipped as data. The only thing fetched at run time is the Chronos model
-itself, from Hugging Face, which is a public download.
+**Everything here runs on open weights and shipped data.** The language-model forecasts
+and the news headlines arrive as files. The one thing fetched at run time is the Chronos
+model, a public download from Hugging Face.
 """, "required", mins="10 seconds")
 
 code(r"""
@@ -190,8 +180,8 @@ md(r"""
 A backtest is a hypothesis test, and a hypothesis test needs events. At
 $\alpha = 1\%$ a 500-day span expects **five** breaches. Five. The cell below computes
 the smallest true breach rate Kupiec's test can reject, as a function of sample length,
-and the answer for our span is sobering: it detects a *doubling* of the breach rate and
-nothing finer.
+and the answer for our span is blunt: the smallest deviation it can detect is a *doubling*
+of the breach rate.
 
 This is the binding constraint of the whole laboratory and it is not hidden anywhere in
 the results. Read every verdict in section 6 through it: a model that "passes" at 1% on
@@ -225,7 +215,7 @@ print(f"\n  our span is 500 days -> {detectable(500) / ALPHA:.1f}x nominal is th
 md(r"""
 ## 2. The historical-simulation benchmark
 
-No model, no parameters, no distribution. Sort the window and read off the quantile.
+One rule, one number: sort the window and read off the quantile.
 
 $$\widehat{\mathrm{VaR}}^{\mathrm{HS}}_{t}(\alpha) = -\,\widehat{Q}_{\alpha}
 \!\left(r_{t-W},\dots,r_{t-1}\right), \qquad W = 250$$
@@ -284,11 +274,11 @@ md(r"""
 The sampling head draws `num_samples` price paths and the quantile is read off the
 sample distribution. The sample count sets the noise floor, and at our level it is the
 binding constraint: with 500 draws, **five** fall below the 1% quantile. The library
-default of 20 draws cannot express a 1% quantile at all — there is no draw below it.
+default of 20 draws puts its lowest draw above the 1% quantile, so that level is out of reach.
 
 So the Chronos-T5 number is an order statistic of five points. That is a modelling
-choice with the same standing as the window length in historical simulation, and it is
-reported about as often as never.
+choice with the same standing as the window length in historical simulation, and papers
+report it far less often.
 
 It costs about nine seconds per forecast on a Colab CPU, so the full 500-day run is
 precomputed
@@ -377,8 +367,8 @@ The method is the one in Pele et al. (2026), *In the Beginning was the Word: LLM
 and LLM-ES* (Expert Systems with Applications). The return series is written out as
 text, the model is asked for the 1% and 5% quantiles of tomorrow's return, and the
 number is
-read out of the reply. There is no VaR head and no fine-tuning; the forecast comes from
-prompted generation.
+read out of the reply. The architecture is unchanged and the weights are untouched; the
+forecast comes from prompted generation alone.
 
 Four information sets are shipped, for every asset:
 
@@ -395,8 +385,8 @@ ways; only the prompt changes.
 
 **Why two of them are anonymised.** The weights were trained on text that already
 covers 2023 and 2024. Given "S&P 500, 5 August 2024", the model can remember what
-happened instead of forecasting it, and a real forecast has no such memory to draw on,
-so a score won that way would not survive live use. The `dated` configuration exists to *measure*
+happened instead of forecasting it, while a live forecast has only the past to work with,
+so a score won that way would fade out of sample. The `dated` configuration exists to *measure*
 that effect — and to serve as the control for the news test in section 5.
 
 **The headlines are real.** They come from EODHD, not from anyone's imagination: a
@@ -429,7 +419,7 @@ Two failure counts are printed above and both are results.
 An **unparseable** reply is an engineering failure: the model wrote prose where JSON was
 asked for. A reply with a **non-negative quantile** is worse, because it parses. It
 asserts that the worst 5% of days is a gain, and it would flow into every downstream
-number without tripping anything. Neither is repaired here; both are counted.
+number without tripping anything. Both are counted here, and both are left as they came.
 """)
 
 code(r"""
@@ -445,8 +435,8 @@ if len(llm) == 2:
 md(r"""
 ## 5. Dated versus dated+news: does real text move the number?
 
-The two configurations above contain no words. This one does: real headlines from EODHD,
-attached to each forecast date under one rule.
+The two configurations above are numbers only. This one adds words: real headlines from
+EODHD, attached to each forecast date under one rule.
 
 > A headline may enter the prompt for date $t$ only if it was published at or before the
 > **as-of cutoff** on $t-1$ — the previous decision point, 20:00 UTC.
@@ -455,7 +445,7 @@ attached to each forecast date under one rule.
 alongside it, and audits both. This matters more than the price alignment: a price series
 can only leak by being shifted, whereas a news series leaks the moment an article
 published at 22:00 describing the day's close is handed to a model asked to forecast that
-close. Nothing in the reply would look wrong.
+close. The reply would still look perfectly ordinary.
 
 **The comparison is against `dated`, not against `series`.** Headlines reveal the period
 on their own — they name companies, events and numbers that place the text in time. So
@@ -994,8 +984,8 @@ md(r"""
 
 ### Extensions
 
-Everything below runs from the files you already have. **None of them needs an API key**
-— which is itself the point of the last one.
+Everything below runs from the files you already have, on open weights throughout, which
+is itself the point of the last one.
 
 - **Swap the asset.** All five carry the same models. Bitcoin is a different
   regime, the Nikkei's news coverage is half the S&P's, and the ranking is not stable
@@ -1004,8 +994,8 @@ Everything below runs from the files you already have. **None of them needs an A
   file both carry it. Five expected breaches in 500 days: which tests still have the
   power to reject anything, and what does that do to the leaderboard?
 - **The one you cannot do, and why that matters.** The 1% extension above stops at the
-  LLM: asking the model for a 1% quantile is a *new set of 500 requests*, which you have
-  no key for. Historical simulation, GARCH and Chronos-T5 gave you a new level for free,
+  LLM: asking the model for a 1% quantile is a *new set of 500 requests* against a rented
+  endpoint. Historical simulation, GARCH and Chronos-T5 gave you a new level for free,
   because you hold the model. That asymmetry — a level costs nothing from a model you
   run, and a full re-run from a model you rent — belongs in any comparison of the two.
 """)

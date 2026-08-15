@@ -1231,7 +1231,8 @@
       \end{itemize}
     \item Historical simulation fails the other way.
       \begin{itemize}
-        \item Zero breaches on the DAX and Bitcoin. \cred{Too conservative is a
+        \item Zero breaches on the DAX and Bitcoin.
+        \item  \cred{Too conservative is a
               rejection too}, at $p = 0.0015$.
       \end{itemize}
   \end{itemize}
@@ -1276,19 +1277,23 @@
   \begin{itemize}
     \item \textbf{Window} leakage: the forecast day sits inside its own estimation window.
       \begin{itemize}
-        \item \textbf{Alignment} leakage: the return series shifted one row against the dates.
+        \item Every window here ends at $t-1$, the $250$-day one included.
+      \end{itemize}
+    \item \textbf{Alignment} leakage: the return series shifted one row against the dates.
+      \begin{itemize}
+        \item Audited on the news merge, where the two feeds keep different calendars.
       \end{itemize}
     \item \textbf{Selection} leakage: the architecture chosen on the period you report.
       \begin{itemize}
-        \item \textbf{Temporal contamination}: the pretraining corpus already holds the outcome.
+        \item NN-$t$ was sized on an early slice and left alone afterwards.
+      \end{itemize}
+    \item \textbf{Temporal contamination}: the pretraining corpus already holds the outcome.
+      \begin{itemize}
+        \item The prompt therefore carries no ticker, no dates and no price levels.
       \end{itemize}
     \item The first three you can test for.
       \begin{itemize}
         \item \cred{The fourth you cannot, because you cannot read the corpus.}
-      \end{itemize}
-    \item So anonymising the prompt is a design choice, and the news alignment is audited.
-      \begin{itemize}
-        \item Neither is a formality; both are what keeps the comparison meaningful.
       \end{itemize}
   \end{itemize}
 \end{frame}

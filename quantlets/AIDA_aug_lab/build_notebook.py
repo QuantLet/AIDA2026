@@ -56,7 +56,8 @@ md(r"""
 Click the badge. Colab loads this file alone, and the first code cell clones the
 rest of the course into the runtime. Everything runs on open weights and shipped data.
 
-One question, four kinds of answer.
+One question, four kinds of answer. Every model here forecasts the same number, the 1%
+**Value at Risk** (VaR): the loss tomorrow exceeds with probability $\alpha$.
 
 $$\Pr\left(r_{t} < -\widehat{\mathrm{VaR}}_{t}(\alpha)\right) = \alpha ,
 \qquad \alpha = 1\%$$
@@ -72,7 +73,7 @@ Every model in this notebook sees the same information and is scored on the same
 | **GARCH(1,1)-$t$** | a variance recursion, scaled by a Student-$t$ quantile |
 | **NN vol + $t$** | a small network learns the scale, the tail shape stays parametric |
 | **Chronos-T5** | pretrained on other series, samples paths, any quantile read off them |
-| **LLM** | the return series written out as text, the quantile asked for in words |
+| **LLM** (large language model) | the return series written out as text, the quantile asked for in words |
 
 You will find out which of them is *calibrated*, which is a different question from
 which of them is sophisticated.
@@ -364,7 +365,8 @@ md(r"""
 ## 4. The LLM: output parsing and logical checks
 
 The method is the one in Pele et al. (2026), *In the Beginning was the Word: LLM-VaR
-and LLM-ES* (Expert Systems with Applications). The return series is written out as
+and LLM-ES* (Expert Systems with Applications), where ES is Expected Shortfall, the
+mean loss beyond the VaR. The return series is written out as
 text, the model is asked for the 1% and 5% quantiles of tomorrow's return, and the
 number is
 read out of the reply. The architecture is unchanged and the weights are untouched; the
@@ -485,9 +487,13 @@ if news is not None:
 """)
 
 md(r"""
-On a date with **no** headline in its window the two prompts are identical by
-construction, so those days contribute exactly zero to the loss differential and only
-dilute the test. Run it on the covered subset, and on the full sample for comparison.
+On a date whose window holds no headline the two prompts are identical by construction,
+so those days contribute exactly zero to the loss differential and only dilute the test.
+Run it on the covered subset, and on the full sample for comparison.
+
+The comparison is a **Diebold-Mariano** test (DM): it takes the two models' daily pinball
+losses, forms the difference, and asks whether its mean is distinguishable from zero.
+Section 6 writes the statistic out in full.
 """)
 
 code(r"""
@@ -820,7 +826,8 @@ md(r"""
 A leaderboard is an ordering. Whether the gap between two rows is larger than sampling
 noise is a separate question, and the Diebold–Mariano test on the loss differential is
 how it is answered. Daily loss differentials are autocorrelated, because volatility
-clusters, so the standard error is HAC-corrected: without that, ordinary noise reads as
+clusters, so the standard error is HAC-corrected — heteroskedasticity- and
+autocorrelation-consistent. Ordinary standard errors read that noise as
 a significant win.
 
 $$DM = \frac{\bar d}{\widehat{\mathrm{se}}_{HAC}(\bar d)},

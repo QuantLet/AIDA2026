@@ -9,6 +9,7 @@ Usage:  python3 check_notebook.py
 """
 
 import ast
+import re
 import builtins
 import json
 import sys
@@ -45,6 +46,42 @@ def used_by(tree):
             if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)}
 
 
+# abbreviation -> what counts as expanding it. Cells are read in order, so an expansion
+# that arrives after the first use is not a definition. Mirrors BINDINGS in
+# src/06_lint_slides.py: the deck and the laboratory follow the same rule.
+BINDINGS = {
+    "VaR": r"Value at Risk",
+    "ES": r"Expected Shortfall",
+    "HS": r"[Hh]istorical simulation",
+    "HAC": r"autocorrelation-consistent",
+    "DM": r"Diebold.?Mariano",
+    "UC": r"Kupiec",
+    "IND": r"Christoffersen",
+    "CC": r"conditional coverage",
+    "LLM": r"large language model",
+    "JSON": r"JSON",
+    "QR": r"[Qq]uantile regression",
+}
+
+
+def unbound_abbreviations(cells):
+    """Abbreviations a reader meets before the notebook says what they stand for."""
+    text = ["".join(c["source"]) for c in cells]
+    out = []
+    for ab, expansion in BINDINGS.items():
+        use = dfn = None
+        for i, t in enumerate(text):
+            if dfn is None and re.search(expansion, t, re.I):
+                dfn = i
+            if use is None and re.search(rf"(?<![A-Za-z]){re.escape(ab)}s?(?![a-z])", t):
+                use = i
+            if use is not None and dfn is not None:
+                break
+        if use is not None and (dfn is None or dfn > use):
+            out.append((use, f"uses {ab!r} before any cell expands it"))
+    return out
+
+
 def main():
     nb = json.loads(NB.read_text())
     defined, problems = set(KNOWN), []
@@ -65,7 +102,9 @@ def main():
             problems.append((i, f"uses {name!r} before any cell defines it"))
         defined |= bound
 
-    for i, msg in problems:
+    problems += unbound_abbreviations(nb["cells"])
+
+    for i, msg in sorted(problems):
         print(f"  cell {i:3d}  {msg}")
     print(f"\n{len(problems)} problems across {len(nb['cells'])} cells")
     return 1 if problems else 0

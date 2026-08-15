@@ -8,7 +8,7 @@ Checks:
   2. every level-1 item has at least one level-2 item beneath it
   3. no text sits outside a list, a block, a table or a figure
   4. no banned phrasing (appositive negations, jargon retired during review)
-  5. no forward reference to a symbol before it is defined
+  5. every abbreviation is expanded on or before the frame that first uses it
   6. citations resolve to the bibliography
   7. every included graphic exists
   8. no frame carries more than five level-1 items
@@ -37,6 +37,27 @@ BANNED = [
     (r"\bdelve\b", "AI register"),
     (r"\bit is worth noting\b", "filler"),
 ]
+
+# abbreviation -> the pattern that counts as expanding it. The rule is one symbol, one
+# meaning, defined at first use, and a deck is read in frame order, so an expansion that
+# arrives later than the first use is not a definition at all. Every entry here was
+# checked by hand once; the table exists so it does not have to be checked again.
+BINDINGS = {
+    "VaR": r"Value at Risk",
+    "ES": r"Expected Shortfall",
+    "HS": r"[Hh]istorical simulation",
+    "QR": r"Quantile regression",
+    "RV": r"realised volatilit",
+    "EWMA": r"exponentially weighted|EWMA",
+    "HAC": r"autocorrelation-robust|newey",
+    "DM": r"Diebold--Mariano",
+    "UC": r"Kupiec",
+    "IND": r"Christoffersen",
+    "CC": r"conditional coverage",
+    "FZ": r"Fissler",
+    "LLM": r"large language model",
+    "JSON": r"JSON",
+}
 
 
 def frames(src):
@@ -152,6 +173,26 @@ def main():
         for pat, why in BANNED:
             for m in re.finditer(pat, body, re.I):
                 flag("banned phrasing", where, f"{m.group(0)!r} -- {why}")
+
+    # frames are emitted in reading order, so the first frame that uses an abbreviation
+    # and the first that expands it can be compared directly
+    order = [(t, b) for t, b, _ in frames(src)]
+    for ab, expansion in BINDINGS.items():
+        use = dfn = None
+        for i, (title, body) in enumerate(order):
+            text = title + "\n" + body
+            if dfn is None and re.search(expansion, text, re.I):
+                dfn = i
+            if use is None and re.search(rf"(?<![A-Za-z]){re.escape(ab)}s?(?![a-z])", text):
+                use = i
+            if use is not None and dfn is not None:
+                break
+        if use is None:
+            continue
+        if dfn is None or dfn > use:
+            where = order[use][0][:44] or "(no title)"
+            flag("abbreviation used before it is expanded", f"{ab} on '{where}'",
+                 f"expand it there, or earlier")
 
     for key in set(re.findall(r"\\(?:paren|text)cite\{([^}]+)\}", src)):
         for k in key.split(","):

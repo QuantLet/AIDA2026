@@ -131,7 +131,7 @@
       \item \textcite{pele2026llmvar} put a language model \emph{inside} the risk number.
         \begin{itemize}
           \item The history is written out as text, the model writes many possible tomorrows.
-          \item VaR is read off those draws.
+          \item Value at Risk (VaR) is read off those draws.
         \end{itemize}
 
 
@@ -278,7 +278,8 @@
       \[ \hat r_{t} = \E\!\left[r_{t}\mid \mathcal{I}_{t-1}\right],
          \qquad
          \Prob\!\left(r_{t} < q_{t}(\alpha)\mid \mathcal{I}_{t-1}\right) = \alpha \]
-    \item With $L_t = -r_t$ the loss and $q_{t}(\alpha) < 0$ the return quantile:
+    \item With $L_t = -r_t$ the loss and $q_{t}(\alpha) < 0$ the return quantile, Value
+          at Risk and Expected Shortfall (ES) are:
       \[ \mathrm{VaR}_{t}(\alpha) = -q_{t}(\alpha) > 0, \qquad
          \mathrm{ES}_{t}(\alpha) = \frac{1}{\alpha}\int_{0}^{\alpha}
          \mathrm{VaR}_{t}(u)\,\mathrm{d}u \]
@@ -843,7 +844,8 @@
   \vspace{0.7em}
   \begin{block}{}
     \begin{itemize}
-      \item The last three put the language model \emph{inside} the risk number.
+      \item The last three put the large language model (LLM) \emph{inside} the risk
+            number.
         \begin{itemize}
           \item \textbf{Quantile elicitation}: Claude Haiku 4.5 in four
                 configurations, and Qwen2.5-1.5B.
@@ -1091,8 +1093,8 @@
       \end{itemize}
     \item Their sum is conditional coverage, $\chi^{2}_{2}$.
       \begin{itemize}
-        \item The full expressions, and the test that compares two models, are in the
-              appendix.
+        \item The full expressions, and the Diebold--Mariano (DM) test that compares two
+              models, are in the appendix.
       \end{itemize}
   \end{itemize}
   \vspace{0.3em}
@@ -1149,10 +1151,10 @@
   \scriptsize
   \input{../tables/backtest_SPX}
   \points{%
-      \item Sorted by pinball loss; \vpass\ and \vreject\ are the coverage tests at $5\%$.
+      \item Sorted by pinball loss; \textbf{UC} is Kupiec, \textbf{IND} is Christoffersen, both at $5\%$.
       \item Five breaches were expected in 500 days; Kupiec rejects only the two Qwen rows.
       \item \cred{The top three}: NN-$t$, Claude with headlines and GARCH-$t$.
-      \item The test separates three of the nine from GARCH-$t$, and those three are worse.
+      \item \textbf{DM} is the Diebold--Mariano $p$-value against GARCH-$t$: it separates three of the nine, and all three score worse.
   }
 \end{frame}
 
@@ -1256,7 +1258,7 @@
         \end{itemize}
       \item The loss uses all \textbf{447} covered days and falls \textbf{6.5\%}.
         \begin{itemize}
-          \item HAC $95\%$ CI $[1.6\%, 11.3\%]$, but one day carries \textbf{39\%} of it.
+          \item HAC (autocorrelation-robust) $95\%$ CI $[1.6\%, 11.3\%]$, but one day carries \textbf{39\%} of it.
         \end{itemize}
   }
   \quantlet{AIDA\_aug\_news}{\qlbase/quantlets/AIDA_aug_news}
@@ -1616,7 +1618,7 @@
 \end{frame}
 
 \begin{frame}{Scoring ES means scoring the pair}
-  \begin{defn}[FZ$_{0}$ loss]
+  \begin{defn}[Fissler--Ziegel FZ$_{0}$ loss]
     For a quantile $v$ and a shortfall $e$ with $e < v < 0$ at level $\alpha$,
     \vspace{-0.4em}
     \[ L_{\mathrm{FZ}_{0}}(r, v, e) =
